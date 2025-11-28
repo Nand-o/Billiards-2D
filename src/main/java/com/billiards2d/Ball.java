@@ -25,10 +25,10 @@ public abstract class Ball implements GameObject {
         // Rumus untuk velocity : posisi baru = posisi lama + velocity * dt(waktu per frame cmiiw)
         position = position.add(velocity.multiply(deltaTime));
 
-        // value untuk gesekan bola biar stop, atur aja king
-        double friction = 0.992;
-        velocity = velocity.multiply(friction);
-        if (velocity.length() < 15)
+        // value untuk gesekan bola biar stop, atur aja king, ini ada gw ubah dikit tadi soalnya jadi janggal king
+        double frictionFactor = Math.pow(0.992, deltaTime * 60.0);
+        velocity = velocity.multiply(frictionFactor);
+        if (velocity.length() < 5)
             velocity = new Vector2D(0, 0); // biar ga gerak ketika sudah tidak ada gaya
     }
 

@@ -6,32 +6,59 @@ import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.layout.StackPane;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
 import javafx.stage.Stage;
+import javafx.scene.input.MouseEvent;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class BilliardApp extends Application {
 
-    private static final int CANVAS_WIDTH = 800;
-    private static final int CANVAS_HEIGHT = 600;
+    private static final int GAME_WIDTH = 800; // Ukuran area main
+    private static final int GAME_HEIGHT = 450;
 
     private GraphicsContext gc;
     private final List<GameObject> gameObjects = new ArrayList<>();
-    private CueStick cueStick; //global field cuestick
+
+    private Table table; // perlu akses field ini
+    private CueStick cueStick; // global field cuestick
+    private CueBall cueBall; // perlu akses untuk HUD
+
+    // GUI Debug vars
+    private double mouseX, mouseY;
 
     @Override
     public void start(Stage primaryStage) {
-        Canvas canvas = new Canvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+        // Init table dulu buat hitung ukuran window total
+        table = new Table(GAME_WIDTH, GAME_HEIGHT);
+        double totalW = GAME_WIDTH + (table.getWallThickness() * 2);
+        double totalH = GAME_HEIGHT + (table.getWallThickness() * 2);
+
+        Canvas canvas = new Canvas(totalW, totalH);
         gc = canvas.getGraphicsContext2D();
 
         StackPane root = new StackPane(canvas);
         Scene scene = new Scene(root);
+        root.setStyle("-fx-background-color: #222;"); // Background gelap
 
         // capture input handler
-        scene.setOnMousePressed(e -> cueStick.handleMousePressed(e));
-        scene.setOnMouseDragged(e -> cueStick.handleMouseDragged(e));
-        scene.setOnMouseReleased(e -> cueStick.handleMouseReleased(e));
+        double offset = table.getWallThickness();
+
+        canvas.setOnMouseMoved(e -> {
+            mouseX = e.getX() - offset;
+            mouseY = e.getY() - offset;
+            cueStick.handleMouseMoved(offsetEvent(e, -offset));
+        });
+
+        canvas.setOnMousePressed(e -> cueStick.handleMousePressed(offsetEvent(e, -offset)));
+        canvas.setOnMouseDragged(e -> {
+            mouseX = e.getX() - offset;
+            mouseY = e.getY() - offset;
+            cueStick.handleMouseDragged(offsetEvent(e, -offset));
+        });
+        canvas.setOnMouseReleased(e -> cueStick.handleMouseReleased(offsetEvent(e, -offset)));
 
         primaryStage.setTitle("Billiard Simulation");
         primaryStage.setScene(scene);
@@ -43,23 +70,41 @@ public class BilliardApp extends Application {
         gameLoop.start();
     }
 
+    // Helper buat geser koordinat mouse
+    private MouseEvent offsetEvent(MouseEvent e, double shift) {
+        return new MouseEvent(
+                e.getSource(), e.getTarget(), e.getEventType(),
+                e.getX() + shift, e.getY() + shift,
+                e.getScreenX(), e.getScreenY(),
+                e.getButton(), e.getClickCount(),
+                e.isShiftDown(), e.isControlDown(), e.isAltDown(), e.isMetaDown(),
+                e.isPrimaryButtonDown(), e.isMiddleButtonDown(), e.isSecondaryButtonDown(),
+                e.isSynthesized(), e.isPopupTrigger(), e.isStillSincePress(), e.getPickResult()
+        );
+    }
+
     private void initializeGameObjects() {
-        Table table = new Table(CANVAS_WIDTH, CANVAS_HEIGHT);
-        CueBall cueBall = new CueBall(new Vector2D(600, 300));
-        ObjectBall ball1 = new ObjectBall(new Vector2D(200, 300), "RED");
-        ObjectBall ball2 = new ObjectBall(new Vector2D(220, 290), "BLUE");
+        // Table sudah di-init di start()
+        cueBall = new CueBall(new Vector2D(GAME_WIDTH/4, GAME_HEIGHT/2));
+        ObjectBall ball1 = new ObjectBall(new Vector2D(GAME_WIDTH*0.75, GAME_HEIGHT/2), "RED");
+        ObjectBall ball2 = new ObjectBall(new Vector2D(GAME_WIDTH*0.75 + 25, GAME_HEIGHT/2 - 10), "BLUE");
+
+        List<Ball> allBalls = new ArrayList<>();
+        allBalls.add(cueBall);
+        allBalls.add(ball1);
+        allBalls.add(ball2);
 
         // Add Cue Stick to visualize gameplay control
-        this.cueStick = new CueStick(cueBall);
+        this.cueStick = new CueStick(cueBall, allBalls, GAME_WIDTH, GAME_HEIGHT);
 
-        gameObjects.add(table);
+        // agar layering (tumpukan) gambar benar.
         gameObjects.add(cueBall);
         gameObjects.add(ball1);
         gameObjects.add(ball2);
-        gameObjects.add(cueStick);
 
         // Add physic engine to game loop
         PhysicsEngine physicsEngine = new PhysicsEngine(table, gameObjects);
+        gameObjects.addAll(allBalls);
         gameObjects.add(physicsEngine);
     }
 
@@ -71,14 +116,43 @@ public class BilliardApp extends Application {
             double deltaTime = (currentNanoTime - lastNanoTime) / 1_000_000_000.0;
             lastNanoTime = currentNanoTime;
 
+            // --- UPDATE LOGIC ---
             for (GameObject obj : gameObjects) {
                 obj.update(deltaTime);
             }
+            cueStick.update(deltaTime);
 
-            gc.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            // --- RENDER LOGIC ---
+            gc.clearRect(0, 0, gc.getCanvas().getWidth(), gc.getCanvas().getHeight());
+
+            // 1. Gambar Meja (Layer Bawah)
+            table.draw(gc);
+
+            // 2. Gambar Game Objects (Layer Tengah - Perlu Geser/Translate)
+            gc.save();
+            gc.translate(table.getWallThickness(), table.getWallThickness());
+
             for (GameObject obj : gameObjects) {
-                obj.draw(gc);
+                // PhysicsEngine gak punya draw, Table udah digambar manual
+                // Jadi cuma gambar Ball
+                if(obj instanceof Ball) obj.draw(gc);
             }
+
+            // Gambar Stik paling atas di layer game
+            cueStick.draw(gc);
+
+            gc.restore();
+
+            // 3. Gambar HUD (Overlay)
+            drawHUD();
+        }
+
+        private void drawHUD() {
+            gc.setFill(Color.WHITE);
+            gc.setFont(Font.font("Consolas", 14));
+            gc.fillText(String.format("Mouse: (%.0f, %.0f)", mouseX, mouseY), 20, 30);
+            double speed = cueBall.getVelocity().length();
+            gc.fillText(String.format("Power: %.2f", speed), 20, 50);
         }
     }
 
