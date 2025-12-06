@@ -2,43 +2,58 @@ package com.billiards2d;
 
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
-
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Kelas yang merepresentasikan Meja Biliar.
+ * <p>
+ * Meja berfungsi sebagai lingkungan permainan yang memiliki batas fisik (dinding/bantalan)
+ * dan area skor (lubang). Kelas ini bertanggung jawab untuk menggambar visual meja
+ * dan menyediakan logika deteksi apakah bola masuk ke dalam lubang.
+ * </p>
+ */
 public class Table implements GameObject {
 
     private double width;
     private double height;
 
-    // Visual settings
+    // --- Pengaturan Visual & Fisik ---
+    /** Ketebalan dinding/bantalan meja dalam pixel. */
     private double wallThickness = 25.0;
+
+    /** Jari-jari visual dari lubang meja. */
     private double pocketRadius = 20.0;
+
+    /** Daftar posisi koordinat pusat dari ke-6 lubang meja. */
     private List<Vector2D> pockets;
 
+    /**
+     * Faktor toleransi untuk deteksi bola masuk lubang.
+     * Nilai 0.855 berarti bola dianggap masuk jika jaraknya < (radius lubang * 0.855).
+     */
+    private static final double POCKET_TOLERANCE = 0.855;
+
+    /**
+     * Konstruktor Meja.
+     *
+     * @param width  Lebar area permainan (bagian hijau saja).
+     * @param height Tinggi area permainan (bagian hijau saja).
+     */
     public Table(double width, double height) {
         this.width = width;
         this.height = height;
         initPockets();
     }
 
+    /**
+     * Menginisialisasi posisi ke-6 lubang meja standar.
+     * Lubang ditempatkan di setiap sudut (4) dan di tengah sisi panjang (2).
+     */
     private void initPockets() {
-//        pockets = new ArrayList<>();
-//        // 6 lubang
-//        double off = 5.0;
-//        pockets.add(new Vector2D(-off, -off)); // Kiri Atas
-//        pockets.add(new Vector2D(width/2, -off*1.5)); // Tengah Atas
-//        pockets.add(new Vector2D(width+off, -off)); // Kanan Atas
-//        pockets.add(new Vector2D(-off, height+off)); // Kiri Bawah
-//        pockets.add(new Vector2D(width/2, height+off*1.5)); // Tengah Bawah
-//        pockets.add(new Vector2D(width+off, height+off)); // Kanan Bawah
-
         pockets = new ArrayList<>();
 
-        // Kita taruh pas di garis dinding (0) atau sedikit menjorok ke luar tapi radiusnya besar
-        // Logika terbaik: Taruh di 0,0 tapi visualnya tetap terlihat di pojok
-
-        // Kiri Atas (0, 0)
+        // Kiri Atas
         pockets.add(new Vector2D(0, 0));
         // Tengah Atas
         pockets.add(new Vector2D(width / 2, 0));
@@ -55,51 +70,49 @@ public class Table implements GameObject {
 
     @Override
     public void update(double deltaTime) {
-        // Static object, no updates
+        // Meja adalah objek statis, tidak memerlukan update logika per frame.
     }
 
+    /**
+     * Menggambar representasi visual meja secara berlapis.
+     */
     @Override
     public void draw(GraphicsContext gc) {
-        // --- GAMBAR BACKGROUND (Lantai) ---
+        // 1. Gambar Background Lantai (agar tidak ada sisa frame sebelumnya di luar meja)
         gc.setFill(Color.rgb(20, 20, 20));
         gc.fillRect(-100, -100, width + 500, height + 500);
 
-        // --- SETUP KOORDINAT DINDING ---
+        // Simpan state grafis sebelum transformasi koordinat
         gc.save();
+        // Geser titik (0,0) menggambar ke area dalam dinding
         gc.translate(wallThickness, wallThickness);
 
-        // 1. Gambar Frame Kayu
+        // 2. Gambar Frame Kayu (Bingkai Luar)
         gc.setFill(Color.SADDLEBROWN.darker());
         gc.fillRect(-wallThickness, -wallThickness, width + wallThickness * 2, height + wallThickness * 2);
 
-        // 2. Gambar Karpet Hijau
+        // 3. Gambar Karpet Hijau (Area Permainan)
         gc.setFill(Color.web("#006400"));
         gc.fillRect(0, 0, width, height);
 
-        // 3. Gambar Diamond Sights (Titik Putih di Kayu)
+        // 4. Gambar Detail Visual (Diamond Sights & Garis Break)
         drawDiamonds(gc);
-
-        // 4. GAMBAR GARIS BREAK (HEAD STRING)
         drawBreakLine(gc);
 
-        // 5. Gambar Lubang
+        // 5. Gambar 6 Lubang (Pockets)
         gc.setFill(Color.BLACK);
         for (Vector2D p : pockets) {
+            // Menggambar lingkaran hitam di posisi lubang
             gc.fillOval(p.getX() - pocketRadius, p.getY() - pocketRadius, pocketRadius * 2, pocketRadius * 2);
         }
 
-        // --- VISUALISASI DEBUG (AREA DETEKSI) ---
-        // Hapus atau komentari bagian ini nanti jika sudah selesai debugging!
-
-        // Warna Merah Transparan (agar lubang hitam di bawahnya tetap terlihat)
-        gc.setFill(Color.rgb(255, 0, 0, 0.5));
-        gc.setStroke(Color.YELLOW);
-        gc.setLineWidth(1);
-
+        // Kembalikan state grafis ke posisi semula
         gc.restore();
     }
 
-    // Method untuk menggambar garis break
+    /**
+     * Menggambar garis putih tipis (Head String) dan titik Head Spot.
+     */
     private void drawBreakLine(GraphicsContext gc) {
         double breakLineX = width * 0.25; // Posisi 1/4 dari kiri meja
 
@@ -114,41 +127,43 @@ public class Table implements GameObject {
         gc.fillOval(breakLineX - spotSize / 2, (height / 2) - spotSize / 2, spotSize, spotSize);
     }
 
+    /**
+     * Menggambar titik-titik penanda (Diamonds) di bingkai kayu meja.
+     */
     private void drawDiamonds(GraphicsContext gc) {
         gc.setFill(Color.BEIGE);
         double dSize = 5;
+        // Menggambar 3 titik di setiap sisi vertikal (kiri dan kanan)
         for (int i = 1; i < 4; i++) {
             gc.fillOval(-wallThickness / 2, (height / 4) * i, dSize, dSize);
             gc.fillOval(width + wallThickness / 2 - dSize, (height / 4) * i, dSize, dSize);
         }
     }
 
+    /**
+     * Memeriksa apakah sebuah bola telah masuk ke dalam salah satu lubang.
+     *
+     * @param ball Objek bola yang akan diperiksa.
+     * @return true jika bola masuk ke dalam radius deteksi lubang, false jika tidak.
+     */
     public boolean isBallInPocket(Ball ball) {
         for (Vector2D pocketPos : pockets) {
-            // Hitung jarak antara pusat bola dan pusat lubang
+            // Hitung jarak Euclidean antara pusat bola dan pusat lubang
             double dx = ball.getPosition().getX() - pocketPos.getX();
             double dy = ball.getPosition().getY() - pocketPos.getY();
             double distance = Math.sqrt(dx * dx + dy * dy);
 
-            // Syarat masuk lubang: jarak < radius lubang
-            if (distance < pocketRadius * 0.855) {
+            // Syarat masuk lubang: jarak < (radius lubang * toleransi)
+            if (distance < pocketRadius * POCKET_TOLERANCE) {
                 return true; // Bola masuk lubang
             }
         }
-
         return false; // Bola tidak masuk lubang
     }
 
-    // Getters
-    public double getWidth() {
-        return width;
-    }
+    // --- Getter ---
 
-    public double getHeight() {
-        return height;
-    }
-
-    public double getWallThickness() {
-        return wallThickness;
-    }
+    public double getWidth() { return width; }
+    public double getHeight() { return height; }
+    public double getWallThickness() { return wallThickness; }
 }
