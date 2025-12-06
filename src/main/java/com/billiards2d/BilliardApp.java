@@ -36,6 +36,7 @@ public class BilliardApp extends Application {
     private Table table;       // Referensi ke objek Meja
     private CueStick cueStick; // Referensi ke Stik untuk input handling
     private CueBall cueBall;   // Referensi ke Bola Putih untuk HUD info
+    private PhysicsEngine physicsEngine; // Referensi ke Physics Engine
 
     // Variabel debug untuk menampilkan info di HUD (Heads-Up Display)
     private double mouseX, mouseY;
@@ -128,8 +129,9 @@ public class BilliardApp extends Application {
 
         // Inisialisasi Physics Engine (Logika Fisika)
         // PhysicsEngine juga dimasukkan ke gameObjects agar method update()-nya dipanggil di loop
-        PhysicsEngine physicsEngine = new PhysicsEngine(table, gameObjects);
+        this.physicsEngine = new PhysicsEngine(table, gameObjects);
         // Note: physicsEngine butuh akses ke list gameObjects untuk mendeteksi semua bola
+        gameObjects.addAll(allBalls); // Pastikan semua bola terdaftar di gameObjects
         gameObjects.add(physicsEngine);
     }
 
@@ -268,9 +270,17 @@ public class BilliardApp extends Application {
             gc.setFont(Font.font("Consolas", 14));
             // Menampilkan koordinat mouse relatif terhadap area main
             gc.fillText(String.format("Mouse: (%.0f, %.0f)", mouseX, mouseY), 20, 30);
+
             // Menampilkan kecepatan bola putih
             double speed = cueBall.getVelocity().length();
             gc.fillText(String.format("Power: %.2f", speed), 20, 50);
+
+            // Tampilkan Skor
+            gc.setFont(Font.font("Consolas", 20)); // Font lebih besar
+            gc.setFill(Color.YELLOW);
+            if (physicsEngine != null) {
+                gc.fillText("SCORE: " + physicsEngine.getPlayerScore(), 20, 80);
+            }
         }
     }
 

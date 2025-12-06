@@ -19,6 +19,7 @@ public class PhysicsEngine implements GameObject {
 
     private Table table;
     private List<GameObject> gameObjects;
+    private int playerScore = 0;
 
     /**
      * Konstruktor PhysicsEngine.
@@ -32,6 +33,19 @@ public class PhysicsEngine implements GameObject {
     }
 
     /**
+     * Returns the current player score tracked by the physics engine.
+     *
+     * This value is updated by the engine when scoring events occur (for example,
+     * when object balls are pocketed). Use this method to obtain read-only access
+     * to the player's current score.
+     *
+     * @return the current player score
+     */
+    public int getPlayerScore() {
+        return playerScore;
+    }
+
+    /**
      * Memperbarui simulasi fisika untuk satu frame.
      * Metode ini memeriksa interaksi setiap bola terhadap lingkungan dan bola lainnya.
      *
@@ -39,14 +53,12 @@ public class PhysicsEngine implements GameObject {
      */
     @Override
     public void update(double deltaTime) {
-        // List sementara untuk menyimpan bola yang harus dihapus (masuk lubang)
-        // Kita tidak boleh menghapus langsung saat iterasi (ConcurrentModificationException)
-        List<GameObject> ballsToRemove = new ArrayList<>();
-
         for (GameObject obj1 : gameObjects) {
             // Hanya proses objek yang bertipe Ball
             if (!(obj1 instanceof Ball)) continue;
             Ball b1 = (Ball) obj1;
+
+            if (!b1.isActive()) continue; // Lewati bola yang tidak aktif
 
             // --- 1. Cek Lubang (Pocket Detection) ---
             // Cek ini dilakukan PERTAMA, karena jika bola masuk lubang,
@@ -58,10 +70,17 @@ public class PhysicsEngine implements GameObject {
                     cb.setActive(false);         // Hilangkan dari meja (fisika)
                     cb.setPendingRespawn(true);  // Tandai butuh respawn nanti
                     cb.setVelocity(new Vector2D(0,0)); // Nol-kan kecepatan
+
+                    // Penalti Skor saat bola putih masuk lubang
+                    playerScore = Math.max(0, playerScore - 10);
+                    System.out.println("Foul! Cue ball pocketed. Score penalized. Current Score: " + playerScore);
                 } else {
                     // Jika bola objek masuk, tandai untuk dihapus dari permainan
                     b1.setActive(false);
-                    ballsToRemove.add(b1);
+
+                    // Tambah skor pemain
+                    playerScore += 10;
+                    System.out.println("Object ball pocketed! Current Score: " + playerScore);
                 }
                 continue; // Skip sisa logika fisika untuk bola ini
             }
@@ -81,9 +100,6 @@ public class PhysicsEngine implements GameObject {
                 resolveBallCollision(b1, b2);
             }
         }
-
-        // Hapus bola yang sudah ditandai masuk lubang
-        gameObjects.removeAll(ballsToRemove);
     }
 
     @Override

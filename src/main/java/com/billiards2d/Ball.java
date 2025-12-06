@@ -75,6 +75,11 @@ public abstract class Ball implements GameObject {
      */
     @Override
     public void draw(GraphicsContext gc) {
+        // Jika bola tidak aktif (sudah masuk lubang), jangan gambar apapun.
+        if (!active) {
+            return;
+        }
+
         gc.setFill(this.color);
         // Menggambar lingkaran (Oval).
         // JavaFX menggambar dari sudut kiri-atas, jadi kita kurangi posisi dengan radius

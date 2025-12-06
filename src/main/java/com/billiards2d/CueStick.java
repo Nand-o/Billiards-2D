@@ -31,7 +31,7 @@ public class CueStick implements GameObject {
     // Jarak maksimal stik bisa ditarik mundur secara visual (pixel)
     private static final double MAX_PULL = 300.0;
     // Gaya maksimal yang bisa diberikan ke bola (satuan fisika arbitrer)
-    private static final double MAX_FORCE = 1500.0;
+    private static final double MAX_FORCE = 1350.0;
     // Jarak tarik mouse yang dianggap sebagai kekuatan penuh (pixel)
     private static final double MAX_DRAG_DISTANCE = 300.0;
 
