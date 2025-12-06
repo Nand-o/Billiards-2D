@@ -116,9 +116,18 @@ public class BilliardApp extends Application {
             double deltaTime = (currentNanoTime - lastNanoTime) / 1_000_000_000.0;
             lastNanoTime = currentNanoTime;
 
-            // --- UPDATE LOGIC ---
-            for (GameObject obj : gameObjects) {
-                obj.update(deltaTime);
+            // Safety Cap
+            if (deltaTime > 0.05) deltaTime = 0.05;
+
+            // --- UPDATE LOGIC DENGAN SUB-STEPPING ---
+            int subSteps = 4;
+            double subDeltaTime = deltaTime/ subSteps;
+
+            for (int step = 0; step < subSteps; step++) {
+                // Update semua game object sedikit demi sedikit
+                for (GameObject obj : gameObjects) {
+                    obj.update(subDeltaTime);
+                }
             }
             cueStick.update(deltaTime);
 

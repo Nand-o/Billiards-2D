@@ -20,7 +20,8 @@ public class CueStick implements GameObject {
 
     // Visual Constants
     private static final double MAX_PULL = 300.0;
-    private static final double MAX_FORCE = 3000.0;
+    private static final double MAX_FORCE = 1400.0;
+    private static final double MAX_DRAG_DISTANCE = 300.0;
 
     // Constructor Baru: Menerima List Bola & Ukuran Meja
     public CueStick(CueBall cueBall, List<Ball> allBalls, double tableW, double tableH) {
@@ -207,13 +208,18 @@ public class CueStick implements GameObject {
     public void handleMouseReleased(MouseEvent e) {
         if (!isAiming) return;
         double dragDist = aimStart.subtract(aimCurrent).length();
-        double scaledPower = Math.pow(dragDist, 1.25);
-        if (scaledPower > MAX_FORCE) scaledPower = MAX_FORCE;
+
+        // Hitung Arah Tembakan
+        if (dragDist > MAX_DRAG_DISTANCE) dragDist = MAX_DRAG_DISTANCE;
+        double dragRatio = dragDist / MAX_DRAG_DISTANCE;
+        double powerCurve = dragRatio * dragRatio;
+        double finalForce = powerCurve * MAX_FORCE;
 
         double shootAngle = lockedAngleRad + Math.PI;
-        Vector2D direction = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle));
-
-        if (scaledPower > 10) cueBall.hit(direction.multiply(scaledPower));
+        Vector2D direction = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
+        if (finalForce > 5) {
+            cueBall.hit(direction.multiply(finalForce));
+        }
         isAiming = false;
     }
 }

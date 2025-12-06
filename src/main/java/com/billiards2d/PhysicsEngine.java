@@ -15,7 +15,6 @@ public class PhysicsEngine implements GameObject {
 
     @Override
     public void update(double deltaTime) {
-        // TODO: Implement collision detection in Week 4-5
         for (GameObject obj1 : gameObjects) {
             if (!(obj1 instanceof Ball)) continue;
             Ball b1 =  (Ball) obj1;
@@ -47,30 +46,31 @@ public class PhysicsEngine implements GameObject {
         double vy = ball.getVelocity().getY();
 
         boolean collided = false;
+        double wallRestitution = 0.9; // Bola kehilangan 10% energi saat memantul dari dinding
 
         // left wall
         if (x - r < 0) {
             x = r;
-            vx = -vx;
+            vx = -vx * wallRestitution;
             collided = true;
         }
         // right wall
         else if (x + r > table.getWidth()) {
             x = table.getWidth() - r;
-            vx = -vx;
+            vx = -vx * wallRestitution;
             collided = true;
         }
 
         // top wall
         if (y - r < 0) {
             y = r;
-            vy = -vy;
+            vy = -vy * wallRestitution;
             collided = true;
         }
         // bottom wall
         else if (y + r > table.getHeight()) {
             y = table.getHeight() - r;
-            vy = -vy;
+            vy = -vy * wallRestitution;
             collided = true;
         }
 
@@ -84,18 +84,26 @@ public class PhysicsEngine implements GameObject {
     {
         Vector2D posDiff = b1.getPosition().subtract(b2.getPosition());
         double dist = posDiff.length();
+        double minDist = b1.getRadius() + b2.getRadius();
 
-        if (dist == 0 || dist > b1.getRadius() + b2.getRadius()) return;
+        // Cek apakah bersentuhan
+        if (dist == 0 || dist >= minDist) return;
 
+        // Static resolution: pindahkan bola supaya tidak saling menembus
+        double overlap = 0.5 * (dist - minDist);
+
+        Vector2D displacement = posDiff.normalize().multiply(overlap);
+        b1.setPosition(b1.getPosition().subtract(displacement));
+        b2.setPosition(b2.getPosition().add(displacement));
+
+        // Dynamic resolution: hitung kecepatan baru setelah tabrakan
         Vector2D normalVector = posDiff.normalize();
-
         Vector2D relativeVel = b1.getVelocity().subtract(b2.getVelocity());
-        double speed = relativeVel.dot(normalVector);
 
+        double speed = relativeVel.dot(normalVector);
         if (speed >= 0) return;
 
         double impulse = 2 * speed / (b1.getMass() + b2.getMass());
-
         double restitution = 0.9; // sedikit hilang energi (smoother than perfect bounce)
 
         b1.setVelocity(
