@@ -10,6 +10,7 @@ public abstract class Ball implements GameObject {
     protected double radius;
     protected double mass;
     protected Color color;
+    protected boolean active = true;
 
     public Ball(Vector2D position, Color color, double radius) {
         this.position = position;
@@ -49,4 +50,6 @@ public abstract class Ball implements GameObject {
     public void setVelocity(Vector2D velocity) { this.velocity = velocity; }
     public double getRadius() { return radius; }
     public double getMass() { return mass; }
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
 }

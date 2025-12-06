@@ -85,6 +85,8 @@ public class CueStick implements GameObject {
         for (Ball other : allBalls) {
             if (other == cueBall) continue;
 
+            if (!other.isActive()) continue;
+
             // Logika "Ghost Ball": Kita cari titik dimana pusat bola putih berjarak 2*Radius
             Vector2D toBall = other.getPosition().subtract(start);
             double t = toBall.dot(dir); // Proyeksi ke garis aim

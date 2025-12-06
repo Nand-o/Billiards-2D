@@ -1,6 +1,8 @@
 package com.billiards2d;
 
 import javafx.scene.canvas.GraphicsContext;
+
+import java.util.ArrayList;
 import java.util.List;
 
 public class PhysicsEngine implements GameObject {
@@ -15,21 +17,38 @@ public class PhysicsEngine implements GameObject {
 
     @Override
     public void update(double deltaTime) {
+        List<GameObject> ballsToRemove = new ArrayList<>();
+
         for (GameObject obj1 : gameObjects) {
             if (!(obj1 instanceof Ball)) continue;
-            Ball b1 =  (Ball) obj1;
+            Ball b1 = (Ball) obj1;
+
+
+            // Cek Lubang (pocket)
+            if (table.isBallInPocket(b1)) {
+                if (b1 instanceof CueBall) {
+                    // Reset posisi cue ball ke tengah meja
+                    b1.setPosition(new Vector2D(200, 225));
+                    b1.setVelocity(new Vector2D(0, 0));
+                } else {
+                    // Tandai bola untuk dihapus
+                    b1.setActive(false);
+                    ballsToRemove.add(b1);
+                }
+            }
 
             checkWallCollision(b1);
 
             for (GameObject obj2 : gameObjects) {
                 if (!(obj2 instanceof Ball)) continue;
-                Ball b2 =  (Ball) obj2;
-
+                Ball b2 = (Ball) obj2;
                 if (b1 == b2) continue;
-
                 resolveBallCollision(b1, b2);
             }
         }
+
+        // Hapus bola yang masuk lubang
+        gameObjects.removeAll(ballsToRemove);
     }
 
     @Override
