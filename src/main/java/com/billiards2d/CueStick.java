@@ -71,7 +71,7 @@ public class CueStick implements GameObject {
             // Mode Bebas: Stik mengikuti posisi mouse
             double dx = mousePos.getX() - cueBall.getPosition().getX();
             double dy = mousePos.getY() - cueBall.getPosition().getY();
-            angleRad = Math.atan2(dy, dx);
+            angleRad = Math.atan2(dy, dx) + Math.PI;
             lockedAngleRad = angleRad; // Simpan sudut terakhir
         } else {
             // Mode Terkunci: Stik tetap pada sudut saat klik dimulai
