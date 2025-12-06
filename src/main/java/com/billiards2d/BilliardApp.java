@@ -112,31 +112,74 @@ public class BilliardApp extends Application {
      * Membuat dan mendaftarkan semua objek permainan awal (Bola, Stik, Engine).
      */
     private void initializeGameObjects() {
-        // Inisialisasi Bola
+        // Inisialisasi Bola Putih
         cueBall = new CueBall(new Vector2D(GAME_WIDTH/4.0, GAME_HEIGHT/2.0));
-        ObjectBall ball1 = new ObjectBall(new Vector2D(GAME_WIDTH*0.75, GAME_HEIGHT/2.0), "RED");
-        ObjectBall ball2 = new ObjectBall(new Vector2D(GAME_WIDTH*0.75 + 25, GAME_HEIGHT/2.0 - 10), "BLUE");
 
-        // List khusus bola untuk referensi CueStick & Physics
+        // List sementara untuk menampung semua bola (Putih + Warna)
         List<Ball> allBalls = new ArrayList<>();
         allBalls.add(cueBall);
-        allBalls.add(ball1);
-        allBalls.add(ball2);
+
+        // Inisialisasi Bola Warna (15 bola dalam formasi segitiga)
+        gameObjects.add(cueBall);
+        setupRack(allBalls);
 
         // Inisialisasi Stik (Butuh referensi ke bola putih dan semua bola untuk prediksi)
         this.cueStick = new CueStick(cueBall, allBalls, GAME_WIDTH, GAME_HEIGHT);
-
-        // Menambahkan ke gameObjects untuk Rendering
-        // Urutan add mempengaruhi urutan gambar (Layering)
-        gameObjects.add(cueBall);
-        gameObjects.add(ball1);
-        gameObjects.add(ball2);
 
         // Inisialisasi Physics Engine (Logika Fisika)
         // PhysicsEngine juga dimasukkan ke gameObjects agar method update()-nya dipanggil di loop
         PhysicsEngine physicsEngine = new PhysicsEngine(table, gameObjects);
         // Note: physicsEngine butuh akses ke list gameObjects untuk mendeteksi semua bola
         gameObjects.add(physicsEngine);
+    }
+
+    // Method helper untuk menyusun 15 bola dalam formasi segitiga
+    private void setupRack(List<Ball> ballList) {
+        double radius = 10.0;
+        // Posisi puncak segitiga (Foot Spot), kira-kira di 75% lebar meja
+        double startX = GAME_WIDTH * 0.75;
+        double startY = GAME_HEIGHT / 2.0;
+
+        // Array warna untuk variasi bola (Siklus warna standar biliar)
+        String[] colors = {
+                "YELLOW", "BLUE", "RED", "PURPLE", "ORANGE", "GREEN", "MAROON", "BLACK",
+                "YELLOW", "BLUE", "RED", "PURPLE", "ORANGE", "GREEN", "MAROON"
+        };
+
+        int ballCount = 0;
+
+        // Loop untuk 5 kolom (baris vertikal segitiga)
+        // Kolom 0 = 1 bola (ujung), Kolom 4 = 5 bola (belakang)
+        for (int col = 0; col < 5; col++) {
+            for (int row = 0; row <= col; row++) {
+                // Hitung Posisi X:
+                // Setiap kolom mundur sejauh (radius * akar 3) agar rapat
+                double x = startX + (col * (radius * Math.sqrt(3)));
+
+                // Hitung Posisi Y:
+                // Kita perlu menengahkan barisan bola secara vertikal terhadap startY
+                // Tinggi total kolom ini = (jumlah bola * diameter)
+                // Posisi awal (atas) = Tengah - (Setengah Tinggi)
+                double rowHeight = col * (radius * 2);
+                double yTop = startY - (rowHeight / 2.0);
+
+                // Posisi Y bola saat ini
+                double y = yTop + (row * (radius * 2));
+
+                // Tentukan warna (Bola ke-5 di tengah biasanya Hitam/8-Ball)
+                String colorName = colors[ballCount % colors.length];
+                if (col == 2 && row == 1) colorName = "BLACK";
+
+                // Buat Bola
+                ObjectBall ball = new ObjectBall(new Vector2D(x, y), colorName);
+
+                // Tambahkan ke list (PENTING: Tambah ke kedua list)
+                ballList.add(ball);     // Untuk Physics & CueStick
+                gameObjects.add(ball);  // Untuk Rendering & Update Loop
+
+                ballCount++;
+            }
+        }
     }
 
     /**
@@ -191,6 +234,30 @@ public class BilliardApp extends Application {
             cueStick.draw(gc);
 
             gc.restore(); // Kembalikan koordinat normal (termasuk dinding)
+
+            // --- LOGIKA RESPAWN CUE BALL ---
+            if (cueBall.isPendingRespawn()) {
+                // Cek apakah semua bola LAIN (selain cueball) sudah berhenti
+                boolean allStopped = true;
+                for (GameObject obj : gameObjects) {
+                    if (obj instanceof Ball && obj != cueBall) {
+                        Ball b = (Ball) obj;
+                        // Cek jika bola aktif dan masih bergerak
+                        if (b.isActive() && b.getVelocity().length() > 0.1) {
+                            allStopped = false;
+                            break;
+                        }
+                    }
+                }
+
+                // Jika semua sudah berhenti, baru munculkan bola putih
+                if (allStopped) {
+                    cueBall.setPosition(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0)); // Posisi Reset
+                    cueBall.setVelocity(new Vector2D(0, 0));
+                    cueBall.setPendingRespawn(false);
+                    cueBall.setActive(true); // Aktifkan kembali fisikanya
+                }
+            }
 
             // 3. Gambar HUD (Overlay Layer) - Info Debug
             drawHUD();

@@ -54,8 +54,10 @@ public class PhysicsEngine implements GameObject {
             if (table.isBallInPocket(b1)) {
                 if (b1 instanceof CueBall) {
                     // Aturan Foul: Jika bola putih masuk, reset ke posisi awal
-                    b1.setPosition(new Vector2D(200, 225)); // Posisi Head Spot (kira-kira)
-                    b1.setVelocity(new Vector2D(0, 0));     // Hentikan pergerakan
+                    CueBall cb = (CueBall) b1;
+                    cb.setActive(false);         // Hilangkan dari meja (fisika)
+                    cb.setPendingRespawn(true);  // Tandai butuh respawn nanti
+                    cb.setVelocity(new Vector2D(0,0)); // Nol-kan kecepatan
                 } else {
                     // Jika bola objek masuk, tandai untuk dihapus dari permainan
                     b1.setActive(false);

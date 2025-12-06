@@ -32,7 +32,7 @@ public class Table implements GameObject {
      * Faktor toleransi untuk deteksi bola masuk lubang.
      * Nilai 0.855 berarti bola dianggap masuk jika jaraknya < (radius lubang * 0.855).
      */
-    private static final double POCKET_TOLERANCE = 0.855;
+    private static final double POCKET_TOLERANCE = 0.875;
 
     /**
      * Konstruktor Meja.

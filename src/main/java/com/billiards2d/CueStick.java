@@ -31,7 +31,7 @@ public class CueStick implements GameObject {
     // Jarak maksimal stik bisa ditarik mundur secara visual (pixel)
     private static final double MAX_PULL = 300.0;
     // Gaya maksimal yang bisa diberikan ke bola (satuan fisika arbitrer)
-    private static final double MAX_FORCE = 1200.0;
+    private static final double MAX_FORCE = 1500.0;
     // Jarak tarik mouse yang dianggap sebagai kekuatan penuh (pixel)
     private static final double MAX_DRAG_DISTANCE = 300.0;
 
@@ -62,8 +62,8 @@ public class CueStick implements GameObject {
      */
     @Override
     public void draw(GraphicsContext gc) {
-        // Jangan gambar stik jika bola sedang bergerak kencang
-        if (cueBall.getVelocity().length() > 0.1) return;
+        // Jangan gambar stik jika bola sedang bergerak
+        if (!areAllBallsStopped()) return;
 
         // 1. Tentukan Sudut Bidikan
         double angleRad;
@@ -183,17 +183,19 @@ public class CueStick implements GameObject {
 
             gc.setLineDashes(null); // Garis solid
 
+            double predictionLength = 50.0; // Panjang garis prediksi lanjutan
+
             // Prediksi Arah Bola Musuh (Merah) - Selalu mengikuti Normal
             gc.setStroke(Color.RED);
             gc.strokeLine(targetBall.getPosition().getX(), targetBall.getPosition().getY(),
-                    targetBall.getPosition().getX() + collisionNormal.getX() * 50,
-                    targetBall.getPosition().getY() + collisionNormal.getY() * 50);
+                    targetBall.getPosition().getX() + collisionNormal.getX() * predictionLength,
+                    targetBall.getPosition().getY() + collisionNormal.getY() * predictionLength);
 
             // Prediksi Arah Bola Putih (Cyan) - Selalu mengikuti Tangent (90 derajat)
             gc.setStroke(Color.CYAN);
             gc.strokeLine(hitPoint.getX(), hitPoint.getY(),
-                    hitPoint.getX() + tangent.getX() * 50,
-                    hitPoint.getY() + tangent.getY() * 50);
+                    hitPoint.getX() + tangent.getX() * predictionLength,
+                    hitPoint.getY() + tangent.getY() * predictionLength);
         }
         gc.restore();
     }
@@ -239,7 +241,7 @@ public class CueStick implements GameObject {
 
     public void handleMousePressed(MouseEvent e) {
         // Hanya bisa mulai membidik jika bola berhenti
-        if (cueBall.getVelocity().length() > 0) return;
+        if (!areAllBallsStopped()) return;
 
         isAiming = true;
         aimStart = new Vector2D(e.getX(), e.getY());
@@ -278,5 +280,16 @@ public class CueStick implements GameObject {
             cueBall.hit(direction.multiply(finalForce));
         }
         isAiming = false;
+    }
+
+    // Helper: Cek apakah SEMUA bola (putih + warna) sudah berhenti
+    private boolean areAllBallsStopped() {
+        for (Ball ball : allBalls) {
+            // Hanya cek bola yang masih aktif di meja
+            if (ball.isActive() && ball.getVelocity().length() > 0.1) {
+                return false; // Masih ada yang bergerak
+            }
+        }
+        return true; // Semua diam
     }
 }
