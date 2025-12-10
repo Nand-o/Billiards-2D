@@ -1,98 +1,102 @@
 package com.billiards2d;
 
+import javafx.geometry.VPos;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.paint.Color;
+import javafx.scene.paint.*;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.TextAlignment;
 
-/**
- * Kelas abstrak yang merepresentasikan entitas dasar Bola Biliar.
- * Kelas ini menangani semua properti fisik (posisi, kecepatan, massa, radius)
- * dan logika pergerakan dasar seperti perpindahan posisi dan gesekan (friction).
- * Kelas ini mengimplementasikan interface {@link GameObject}.
- */
 public abstract class Ball implements GameObject {
 
-    /** Posisi bola dalam koordinat 2D (x, y) pada meja. */
     protected Vector2D position;
-
-    /** Vektor kecepatan bola yang menentukan arah dan laju pergerakan. */
     protected Vector2D velocity;
-
-    /** Jari-jari bola dalam satuan pixel. */
     protected double radius;
-
-    /** Massa bola, digunakan untuk perhitungan momentum saat tumbukan antar-bola. */
     protected double mass;
-
-    /** Warna visual bola saat digambar ke layar. */
     protected Color color;
-
-    /** Status bola: true jika bola masih ada di meja, false jika sudah masuk lubang. */
+    protected int number;
     protected boolean active = true;
 
-    /**
-     * Konstruktor untuk membuat objek Ball baru.
-     * @param position Posisi awal bola (Vector2D).
-     * @param color    Warna bola.
-     * @param radius   Ukuran jari-jari bola.
-     */
-    public Ball(Vector2D position, Color color, double radius) {
+    public Ball(Vector2D position, Color color, double radius, int number) {
         this.position = position;
-        this.velocity = new Vector2D(0, 0); // Kecepatan awal selalu 0 (diam)
+        this.velocity = new Vector2D(0, 0);
         this.color = color;
         this.radius = radius;
-        this.mass = 1.0; // Massa default diset ke 1.0
+        this.mass = 1.0;
+        this.number = number;
     }
 
-    /**
-     * Memperbarui status fisik bola untuk setiap frame permainan.
-     * Metode ini dipanggil oleh Game Loop.
-     * @param deltaTime Waktu yang berlalu sejak frame terakhir (dalam detik).
-     * Digunakan agar gerakan bola konsisten (frame-rate independent).
-     */
     @Override
-    public void update(double deltaTime) {
-        // 1. Integrasi Posisi:
-        // Posisi baru = Posisi lama + (Kecepatan * Waktu)
-        position = position.add(velocity.multiply(deltaTime));
+    public void update(double deltaTime) {}
 
-        // 2. Penerapan Gesekan (Time-Based Friction):
-        // Mengurangi kecepatan secara bertahap untuk mensimulasikan gesekan karpet meja.
-        // Menggunakan Math.pow agar tingkat perlambatan tetap sama berapapun FPS komputernya.
-        // Angka 0.992 adalah koefisien gesekan (semakin dekat ke 1, semakin licin).
-        double frictionFactor = Math.pow(0.992, deltaTime * 60.0);
-        velocity = velocity.multiply(frictionFactor);
-
-        // 3. Batas Berhenti (Stop Threshold):
-        // Jika bola bergerak sangat lambat (kurang dari 5 pixel/detik), paksa berhenti total.
-        // Ini mencegah bola bergerak mikro (jitter) dan memungkinkan giliran bermain selesai.
-        if (velocity.length() < 5)
-            velocity = new Vector2D(0, 0); // biar ga gerak ketika sudah tidak ada gaya
-    }
-
-    /**
-     * Menggambar bentuk visual bola ke Canvas JavaFX.
-     * @param gc Konteks grafis dari Canvas tempat menggambar.
-     */
     @Override
     public void draw(GraphicsContext gc) {
-        // Jika bola tidak aktif (sudah masuk lubang), jangan gambar apapun.
-        if (!active) {
+        if (!active) return;
+        renderVisual(gc, position.getX(), position.getY(), radius, number, color, true);
+    }
+
+    public static void renderVisual(GraphicsContext gc, double x, double y, double r, int num, Color c, boolean isActive) {
+        if (!isActive) {
+            gc.setGlobalAlpha(0.3);
+            gc.setFill(Color.BLACK);
+            gc.fillOval(x - r, y - r, r * 2, r * 2);
+            gc.setStroke(Color.GRAY);
+            gc.setLineWidth(1);
+            gc.strokeOval(x - r, y - r, r * 2, r * 2);
+            gc.setGlobalAlpha(1.0);
             return;
         }
 
-        gc.setFill(this.color);
-        // Menggambar lingkaran (Oval).
-        // JavaFX menggambar dari sudut kiri-atas, jadi kita kurangi posisi dengan radius
-        // agar titik (x,y) berada tepat di tengah bola.
-        gc.fillOval(
-                this.position.getX() - this.radius,
-                this.position.getY() - this.radius,
-                this.radius * 2, // Lebar
-                this.radius * 2 // Tinggi
-        );
-    }
+        gc.setFill(Color.rgb(0, 0, 0, 0.5));
+        gc.fillOval(x - r + (r * 0.15), y - r + (r * 0.15), r * 2, r * 2);
 
-    // --- Getter dan Setter ---
+        boolean isStripe = num >= 9 && num <= 15;
+        Color baseColor = (num == 0 || isStripe) ? Color.WHITE : c;
+
+        RadialGradient baseGrad = new RadialGradient(
+                0, 0, x - (r * 0.2), y - (r * 0.2), r * 1.4,
+                false, CycleMethod.NO_CYCLE,
+                new Stop(0.0, baseColor.brighter()),
+                new Stop(1.0, baseColor.darker().darker())
+        );
+        gc.setFill(baseGrad);
+        gc.fillOval(x - r, y - r, r * 2, r * 2);
+
+        if (isStripe) {
+            gc.save();
+            gc.beginPath();
+            gc.arc(x, y, r, r, 0, 360);
+            gc.clip();
+            gc.setFill(c);
+            gc.fillRect(x - r, y - (r * 0.65), r * 2, r * 1.3);
+            gc.restore();
+        }
+
+        RadialGradient glare = new RadialGradient(
+                0, 0, x - (r * 0.35), y - (r * 0.35), r * 0.7,
+                false, CycleMethod.NO_CYCLE,
+                new Stop(0.0, Color.rgb(255, 255, 255, 0.9)),
+                new Stop(1.0, Color.TRANSPARENT)
+        );
+        gc.setFill(glare);
+        gc.fillOval(x - r * 0.8, y - r * 0.8, r * 1.2, r * 1.2);
+
+        if (num > 0) {
+            double badgeSize = r * 1.1;
+            gc.setFill(Color.WHITE);
+            gc.fillOval(x - badgeSize / 2, y - badgeSize / 2, badgeSize, badgeSize);
+
+            gc.setFill(Color.BLACK);
+            gc.setTextAlign(TextAlignment.CENTER);
+            gc.setTextBaseline(VPos.CENTER);
+            gc.setFont(Font.font("Arial", FontWeight.BOLD, r * 0.7));
+            gc.fillText(String.valueOf(num), x, y);
+        } else if (num == 0) {
+            gc.setFill(Color.RED);
+            double dotSize = r * 0.2;
+            gc.fillOval(x - dotSize / 2, y - dotSize / 2, dotSize, dotSize);
+        }
+    }
 
     public Vector2D getPosition() { return position; }
     public void setPosition(Vector2D position) { this.position = position; }
@@ -102,4 +106,5 @@ public abstract class Ball implements GameObject {
     public double getMass() { return mass; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+    public int getNumber() { return number; }
 }

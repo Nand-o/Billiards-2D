@@ -1,295 +1,167 @@
 package com.billiards2d;
 
+import com.billiards2d.core.GameBus;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import java.util.List;
 
-/**
- * Kelas yang merepresentasikan Stik Biliar (Cue Stick).
- * <p>
- * Kelas ini menangani semua interaksi input pemain (mouse), termasuk:
- * 1. Membidik (menggerakkan mouse di sekitar bola putih).
- * 2. Mengatur kekuatan pukulan (drag-and-release mechanic).
- * 3. Menampilkan visualisasi bantuan seperti garis prediksi dan ghost ball.
- * </p>
- */
 public class CueStick implements GameObject {
 
     private CueBall cueBall;
-    private List<Ball> allBalls; // Referensi ke semua bola untuk perhitungan prediksi
-    private double tableWidth, tableHeight;
+    private List<GameObject> allObjects;
 
-    // --- State Aiming (Status Bidikan) ---
-    private boolean isAiming = false;       // Apakah pemain sedang menahan klik mouse?
-    private Vector2D aimStart;              // Posisi mouse saat klik pertama kali
-    private Vector2D aimCurrent;            // Posisi mouse saat ini (saat di-drag)
-    private Vector2D mousePos = new Vector2D(0, 0); // Posisi mouse umum (untuk rotasi stik)
-    private double lockedAngleRad = 0;      // Sudut stik yang terkunci saat mulai menarih
+    private boolean isAiming = false;
+    private Vector2D aimStart;
+    private Vector2D aimCurrent;
+    private double currentPower = 0;
 
-    // --- Konstanta Fisika & Visual ---
-    // Jarak maksimal stik bisa ditarik mundur secara visual (pixel)
-    private static final double MAX_PULL = 300.0;
-    // Gaya maksimal yang bisa diberikan ke bola (satuan fisika arbitrer)
-    private static final double MAX_FORCE = 1350.0;
-    // Jarak tarik mouse yang dianggap sebagai kekuatan penuh (pixel)
-    private static final double MAX_DRAG_DISTANCE = 300.0;
+    private static final double MAX_POWER = 4000;
+    private static final double FORCE_MULTIPLIER = 20.0;
+    private static final double TABLE_WIDTH = 1100;
+    private static final double TABLE_HEIGHT = 550;
+    private static final double RAIL_SIZE = 55;
+    private static final double BALL_RADIUS = 15;
 
-    /**
-     * Konstruktor CueStick.
-     *
-     * @param cueBall  Referensi ke bola putih yang akan dipukul.
-     * @param allBalls Daftar semua bola di meja (untuk deteksi prediksi tabrakan).
-     * @param tableW   Lebar meja (untuk prediksi pantulan dinding).
-     * @param tableH   Tinggi meja.
-     */
-    public CueStick(CueBall cueBall, List<Ball> allBalls, double tableW, double tableH) {
+    public CueStick(CueBall cueBall, List<GameObject> allObjects) {
         this.cueBall = cueBall;
-        this.allBalls = allBalls;
-        this.tableWidth = tableW;
-        this.tableHeight = tableH;
+        this.allObjects = allObjects;
     }
 
     @Override
-    public void update(double deltaTime) {
-        // Logika update stik bisa ditambahkan di sini (misal animasi idle)
-        // Saat ini kosong karena stik digerakkan murni oleh event mouse
-    }
+    public void update(double deltaTime) {}
 
-    /**
-     * Menggambar stik dan elemen visual pendukung (garis prediksi).
-     * Stik hanya digambar jika bola putih sedang berhenti atau bergerak sangat lambat.
-     */
     @Override
     public void draw(GraphicsContext gc) {
-        // Jangan gambar stik jika bola sedang bergerak
-        if (!areAllBallsStopped()) return;
+        if (isAiming && cueBall.getVelocity().length() < 0.1) {
+            Vector2D drag = aimStart.subtract(aimCurrent);
+            Vector2D direction = drag.normalize();
+            currentPower = Math.min(drag.length() * FORCE_MULTIPLIER, MAX_POWER);
 
-        // 1. Tentukan Sudut Bidikan
-        double angleRad;
-        if (!isAiming) {
-            // Mode Bebas: Stik mengikuti posisi mouse
-            double dx = mousePos.getX() - cueBall.getPosition().getX();
-            double dy = mousePos.getY() - cueBall.getPosition().getY();
-            angleRad = Math.atan2(dy, dx) + Math.PI;
-            lockedAngleRad = angleRad; // Simpan sudut terakhir
-        } else {
-            // Mode Terkunci: Stik tetap pada sudut saat klik dimulai
-            angleRad = lockedAngleRad;
-        }
+            double bestDist = Double.MAX_VALUE;
+            Ball target = null;
 
-        // 2. Gambar Garis Prediksi (Raycast)
-        // Arah tembakan adalah kebalikan dari posisi stik (+ 180 derajat / PI radian)
-        double shootAngle = angleRad + Math.PI;
-        Vector2D shootDir = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
+            for (GameObject obj : allObjects) {
+                if (obj instanceof ObjectBall) {
+                    Ball b = (Ball) obj;
+                    if (!b.isActive()) continue;
 
-        drawPredictionRay(gc, cueBall.getPosition(), shootDir);
+                    Vector2D toBall = b.getPosition().subtract(cueBall.getPosition());
+                    double dot = toBall.dot(direction);
+                    if (dot <= 0) continue;
 
-        // 3. Gambar Stik Fisik
-        drawStickVisual(gc, angleRad);
-    }
-
-    /**
-     * Logika Raycasting untuk memprediksi lintasan bola putih.
-     * Menggambar garis putus-putus dan "Ghost Ball" di titik tabrakan yang diprediksi.
-     */
-    private void drawPredictionRay(GraphicsContext gc, Vector2D start, Vector2D dir) {
-        double closestDist = 1000.0;
-        Vector2D hitPoint = start.add(dir.multiply(closestDist));
-        Ball targetBall = null;
-        boolean hitWall = false;
-
-        // A. Cek Tabrakan Dinding (Wall Intersection)
-        // Menghitung jarak ke setiap sisi dinding berdasarkan arah vektor
-        double distToRight = (tableWidth - cueBall.getRadius() - start.getX()) / dir.getX();
-        double distToLeft = (cueBall.getRadius() - start.getX()) / dir.getX();
-        double distToBottom = (tableHeight - cueBall.getRadius() - start.getY()) / dir.getY();
-        double distToTop = (cueBall.getRadius() - start.getY()) / dir.getY();
-
-        // Cari jarak positif terpendek (dinding yang akan ditabrak pertama kali)
-        if (distToRight > 0) closestDist = Math.min(closestDist, distToRight);
-        if (distToLeft > 0) closestDist = Math.min(closestDist, distToLeft);
-        if (distToBottom > 0) closestDist = Math.min(closestDist, distToBottom);
-        if (distToTop > 0) closestDist = Math.min(closestDist, distToTop);
-
-        hitWall = true; // Default asumsi kena dinding dulu
-
-        // B. Cek Tabrakan Bola (Ray-Circle Intersection)
-        for (Ball other : allBalls) {
-            if (other == cueBall) continue;
-
-            // PENTING: Abaikan bola yang sudah masuk lubang (tidak aktif)
-            if (!other.isActive()) continue;
-
-            // Logika "Ghost Ball": Kita cari titik di mana pusat bola putih berjarak 2*Radius
-            Vector2D toBall = other.getPosition().subtract(start);
-            double t = toBall.dot(dir); // Proyeksi vektor bola ke garis bidikan
-
-            // Jika bola ada di belakang arah bidikan, abaikan
-            if (t < 0) continue;
-
-            // Jarak tegak lurus dari garis aim ke pusat bola musuh
-            Vector2D projPoint = start.add(dir.multiply(t));
-            double distPerp = other.getPosition().subtract(projPoint).length();
-            double collisionDist = cueBall.getRadius() + other.getRadius();
-
-            // Jika jarak tegak lurus < 2*Radius, berarti akan terjadi tabrakan
-            if (distPerp < collisionDist) {
-                // Hitung mundur dari titik proyeksi ke titik sentuh sebenarnya (Pythagoras)
-                double dt = Math.sqrt(collisionDist * collisionDist - distPerp * distPerp);
-                double distToHit = t - dt;
-
-                // Jika tabrakan ini lebih dekat dari dinding atau bola sebelumnya, simpan ini
-                if (distToHit > 0 && distToHit < closestDist) {
-                    closestDist = distToHit;
-                    targetBall = other;
-                    hitWall = false; // Kena bola, bukan dinding
+                    double distLine = Math.sqrt(toBall.length() * toBall.length() - dot * dot);
+                    if (distLine < b.getRadius() * 2 - 0.1) {
+                        double distImpact = dot - Math.sqrt(Math.pow(b.getRadius() * 2, 2) - distLine * distLine);
+                        if (distImpact < bestDist) {
+                            bestDist = distImpact;
+                            target = b;
+                        }
+                    }
                 }
             }
-        }
 
-        // Update titik akhir garis prediksi
-        hitPoint = start.add(dir.multiply(closestDist));
+            double wallDist = getDistanceToWall(cueBall.getPosition(), direction);
 
-        // --- GAMBAR LINE VISUAL ---
+            gc.save();
+            gc.setStroke(Color.WHITE);
+            gc.setLineWidth(2);
+            gc.setLineDashes(null);
 
-        // 1. Garis Utama (Putih Putus-putus)
-        gc.save();
-        gc.setStroke(Color.WHITE);
-        gc.setLineWidth(1);
-        gc.setLineDashes(5); // Efek putus-putus
-        gc.strokeLine(start.getX(), start.getY(), hitPoint.getX(), hitPoint.getY());
+            if (target != null && bestDist < wallDist) {
+                Vector2D impact = cueBall.getPosition().add(direction.multiply(bestDist));
+                gc.strokeLine(cueBall.getPosition().getX(), cueBall.getPosition().getY(), impact.getX(), impact.getY());
 
-        // Gambar "Ghost Ball" (Lingkaran outline di titik tabrakan)
-        if (targetBall != null || hitWall) {
-            gc.setGlobalAlpha(0.3); // Transparan
-            gc.strokeOval(hitPoint.getX() - cueBall.getRadius(), hitPoint.getY() - cueBall.getRadius(),
-                    cueBall.getRadius()*2, cueBall.getRadius()*2);
-            gc.setGlobalAlpha(1.0);
-        }
+                gc.strokeOval(impact.getX() - BALL_RADIUS, impact.getY() - BALL_RADIUS, BALL_RADIUS * 2, BALL_RADIUS * 2);
+                gc.setFill(Color.WHITE);
+                gc.fillOval(impact.getX() - 2, impact.getY() - 2, 4, 4);
 
-        // 2. PERCABANGAN PREDIKSI (Jika kena bola)
-        if (targetBall != null) {
-            // Vektor Normal: Garis hubung pusat kedua bola saat tabrakan
-            Vector2D collisionNormal = targetBall.getPosition().subtract(hitPoint).normalize();
+                Vector2D normal = target.getPosition().subtract(impact).normalize();
+                double dot = direction.dot(normal);
+                Vector2D tangent = direction.subtract(normal.multiply(dot)).normalize();
+                double guideLen = 45.0;
 
-            // Vektor Tangent: Garis singgung (tegak lurus dari normal) -> Arah pantul bola putih
-            Vector2D tangent = new Vector2D(-collisionNormal.getY(), collisionNormal.getX());
-
-            // Pastikan arah tangent searah dengan gerakan asli (forward)
-            if (dir.dot(tangent) < 0) {
-                tangent = tangent.multiply(-1);
+                Vector2D cueEnd = impact.add(tangent.multiply(guideLen));
+                gc.strokeLine(impact.getX(), impact.getY(), cueEnd.getX(), cueEnd.getY());
+                Vector2D targetEnd = target.getPosition().add(normal.multiply(guideLen));
+                gc.strokeLine(target.getPosition().getX(), target.getPosition().getY(), targetEnd.getX(), targetEnd.getY());
+            } else {
+                Vector2D end = cueBall.getPosition().add(direction.multiply(wallDist));
+                gc.strokeLine(cueBall.getPosition().getX(), cueBall.getPosition().getY(), end.getX(), end.getY());
+                gc.setFill(Color.WHITE);
+                gc.fillOval(end.getX() - 3, end.getY() - 3, 6, 6);
             }
+            gc.restore();
 
-            gc.setLineDashes(null); // Garis solid
-
-            double predictionLength = 50.0; // Panjang garis prediksi lanjutan
-
-            // Prediksi Arah Bola Musuh (Merah) - Selalu mengikuti Normal
-            gc.setStroke(Color.RED);
-            gc.strokeLine(targetBall.getPosition().getX(), targetBall.getPosition().getY(),
-                    targetBall.getPosition().getX() + collisionNormal.getX() * predictionLength,
-                    targetBall.getPosition().getY() + collisionNormal.getY() * predictionLength);
-
-            // Prediksi Arah Bola Putih (Cyan) - Selalu mengikuti Tangent (90 derajat)
-            gc.setStroke(Color.CYAN);
-            gc.strokeLine(hitPoint.getX(), hitPoint.getY(),
-                    hitPoint.getX() + tangent.getX() * predictionLength,
-                    hitPoint.getY() + tangent.getY() * predictionLength);
+            drawVisualStick(gc, direction);
         }
-        gc.restore();
     }
 
-    /**
-     * Menggambar bentuk visual stik biliar.
-     * Stik digambar dengan rotasi sesuai sudut bidikan dan posisi mundur sesuai tarikan mouse.
-     */
-    private void drawStickVisual(GraphicsContext gc, double angleRad) {
-        double angleDeg = Math.toDegrees(angleRad);
-        double pullDistance = 20; // Jarak default dari bola
+    private double getDistanceToWall(Vector2D pos, Vector2D dir) {
+        double right = TABLE_WIDTH - RAIL_SIZE - BALL_RADIUS;
+        double left = RAIL_SIZE + BALL_RADIUS;
+        double bottom = TABLE_HEIGHT - RAIL_SIZE - BALL_RADIUS;
+        double top = RAIL_SIZE + BALL_RADIUS;
+        double tMin = Double.MAX_VALUE;
 
-        // Jika sedang membidik, stik mundur sesuai jarak tarik mouse
-        if (isAiming) {
-            double dragDist = aimStart.subtract(aimCurrent).length();
-            pullDistance = Math.min(dragDist, MAX_PULL);
-        }
+        if (dir.getX() > 0) tMin = Math.min(tMin, (right - pos.getX()) / dir.getX());
+        else if (dir.getX() < 0) tMin = Math.min(tMin, (left - pos.getX()) / dir.getX());
 
-        gc.save();
-        // Pindahkan titik asal (0,0) ke pusat bola putih untuk memudahkan rotasi
-        gc.translate(cueBall.getPosition().getX(), cueBall.getPosition().getY());
-        gc.rotate(angleDeg);
+        if (dir.getY() > 0) tMin = Math.min(tMin, (bottom - pos.getY()) / dir.getY());
+        else if (dir.getY() < 0) tMin = Math.min(tMin, (top - pos.getY()) / dir.getY());
 
-        double stickLen = 300;
-        double stickWidth = 8;
-        double tipOffset = cueBall.getRadius() + pullDistance;
-
-        // Gambar Batang Kayu
-        gc.setFill(Color.SADDLEBROWN);
-        gc.fillRect(tipOffset, -stickWidth/2, stickLen, stickWidth);
-        // Gambar Ujung Stik (Tip)
-        gc.setFill(Color.CYAN);
-        gc.fillRect(tipOffset, -stickWidth/2, 5, stickWidth);
-
-        gc.restore();
+        return tMin == Double.MAX_VALUE ? 0 : tMin;
     }
 
-    // --- EVENT HANDLERS (Input Mouse) ---
+    private void drawVisualStick(GraphicsContext gc, Vector2D direction) {
+        Vector2D stickStart = cueBall.getPosition().add(direction.multiply(-20));
+        double pullBack = 15 + (currentPower * 0.04);
+        stickStart = stickStart.subtract(direction.multiply(pullBack));
+        Vector2D stickEnd = stickStart.add(direction.multiply(-300));
 
-    public void handleMouseMoved(MouseEvent e) {
-        if (!isAiming) this.mousePos = new Vector2D(e.getX(), e.getY());
+        gc.setStroke(Color.rgb(100, 60, 20));
+        gc.setLineWidth(7);
+        gc.strokeLine(stickStart.getX(), stickStart.getY(), stickEnd.getX(), stickEnd.getY());
+
+        gc.setStroke(Color.rgb(140, 90, 40));
+        gc.setLineWidth(3);
+        gc.strokeLine(stickStart.getX(), stickStart.getY(), stickEnd.getX(), stickEnd.getY());
+
+        Vector2D tipEnd = stickStart.add(direction.multiply(-8));
+        gc.setStroke(Color.CYAN);
+        gc.setLineWidth(7);
+        gc.strokeLine(stickStart.getX(), stickStart.getY(), tipEnd.getX(), tipEnd.getY());
     }
 
     public void handleMousePressed(MouseEvent e) {
-        // Hanya bisa mulai membidik jika bola berhenti
-        if (!areAllBallsStopped()) return;
-
-        isAiming = true;
-        aimStart = new Vector2D(e.getX(), e.getY());
-        aimCurrent = new Vector2D(e.getX(), e.getY());
+        if (cueBall.getVelocity().length() > 0.1) return;
+        double dx = e.getX() - cueBall.getPosition().getX();
+        double dy = e.getY() - cueBall.getPosition().getY();
+        if (Math.sqrt(dx * dx + dy * dy) <= BALL_RADIUS * 8) {
+            isAiming = true;
+            aimStart = cueBall.getPosition();
+            aimCurrent = new Vector2D(e.getX(), e.getY());
+        }
     }
 
     public void handleMouseDragged(MouseEvent e) {
-        if (!isAiming) return;
-        aimCurrent = new Vector2D(e.getX(), e.getY());
+        if (isAiming) aimCurrent = new Vector2D(e.getX(), e.getY());
     }
 
     public void handleMouseReleased(MouseEvent e) {
         if (!isAiming) return;
+        Vector2D drag = aimStart.subtract(aimCurrent);
+        double power = Math.min(drag.length() * FORCE_MULTIPLIER, MAX_POWER);
 
-        // 1. Hitung jarak tarik (pixel)
-        double dragDist = aimStart.subtract(aimCurrent).length();
-
-        // 2. Batasi jarak tarik visual agar tidak melebihi batas
-        if (dragDist > MAX_DRAG_DISTANCE) dragDist = MAX_DRAG_DISTANCE;
-
-        // 3. Hitung Rasio (0.0 sampai 1.0)
-        double dragRatio = dragDist / MAX_DRAG_DISTANCE;
-
-        // 4. Terapkan Kurva Kuadratik (Agar tarikan awal halus)
-        double powerCurve = dragRatio * dragRatio;
-
-        // 5. Konversi ke Force (Kekuatan Akhir)
-        double finalForce = powerCurve * MAX_FORCE;
-
-        // 6. Hitung Vektor Arah Tembakan
-        double shootAngle = lockedAngleRad + Math.PI;
-        Vector2D direction = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
-
-        // 7. Eksekusi Pukulan (dengan deadzone kecil)
-        if (finalForce > 5) {
-            cueBall.hit(direction.multiply(finalForce));
+        if (power > 50) {
+            Vector2D force = drag.normalize().multiply(power);
+            cueBall.hit(force);
+            GameBus.publish(GameBus.EventType.SHOT_TAKEN, force);
         }
         isAiming = false;
+        currentPower = 0;
     }
 
-    // Helper: Cek apakah SEMUA bola (putih + warna) sudah berhenti
-    private boolean areAllBallsStopped() {
-        for (Ball ball : allBalls) {
-            // Hanya cek bola yang masih aktif di meja
-            if (ball.isActive() && ball.getVelocity().length() > 0.1) {
-                return false; // Masih ada yang bergerak
-            }
-        }
-        return true; // Semua diam
-    }
+    public double getCurrentPower() { return currentPower; }
+    public double getMaxPower() { return MAX_POWER; }
 }
