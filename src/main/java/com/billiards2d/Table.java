@@ -2,104 +2,168 @@ package com.billiards2d;
 
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
-import javafx.scene.paint.CycleMethod;
-import javafx.scene.paint.RadialGradient;
-import javafx.scene.paint.Stop;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Kelas yang merepresentasikan Meja Biliar.
+ * <p>
+ * Meja berfungsi sebagai lingkungan permainan yang memiliki batas fisik (dinding/bantalan)
+ * dan area skor (lubang). Kelas ini bertanggung jawab untuk menggambar visual meja
+ * dan menyediakan logika deteksi apakah bola masuk ke dalam lubang.
+ * </p>
+ */
 public class Table implements GameObject {
 
-    private final double width;
-    private final double height;
-    private final double railSize = 55;
-    private final double pocketRadius = 30;
+    private double width;
+    private double height;
+
+    // --- Pengaturan Visual & Fisik ---
+    /** Ketebalan dinding/bantalan meja dalam pixel. */
+    private double wallThickness = 25.0;
+
+    /** Jari-jari visual dari lubang meja. */
+    private double pocketRadius = 20.0;
+
+    /** Daftar posisi koordinat pusat dari ke-6 lubang meja. */
     private List<Vector2D> pockets;
 
+    /**
+     * Faktor toleransi untuk deteksi bola masuk lubang.
+     * Nilai 0.855 berarti bola dianggap masuk jika jaraknya < (radius lubang * 0.855).
+     */
+    private static final double POCKET_TOLERANCE = 0.875;
+
+    /**
+     * Konstruktor Meja.
+     *
+     * @param width  Lebar area permainan (bagian hijau saja).
+     * @param height Tinggi area permainan (bagian hijau saja).
+     */
     public Table(double width, double height) {
         this.width = width;
         this.height = height;
-        initializePockets();
+        initPockets();
     }
 
-    private void initializePockets() {
+    /**
+     * Menginisialisasi posisi ke-6 lubang meja standar.
+     * Lubang ditempatkan di setiap sudut (4) dan di tengah sisi panjang (2).
+     */
+    private void initPockets() {
         pockets = new ArrayList<>();
-        double cornerOffset = railSize * 0.85;
-        pockets.add(new Vector2D(cornerOffset, cornerOffset));
-        pockets.add(new Vector2D(width - cornerOffset, cornerOffset));
-        pockets.add(new Vector2D(cornerOffset, height - cornerOffset));
-        pockets.add(new Vector2D(width - cornerOffset, height - cornerOffset));
 
-        double sideOffset = railSize * 0.6;
-        pockets.add(new Vector2D(width / 2, sideOffset));
-        pockets.add(new Vector2D(width / 2, height - sideOffset));
+        // Kiri Atas
+        pockets.add(new Vector2D(0, 0));
+        // Tengah Atas
+        pockets.add(new Vector2D(width / 2, 0));
+        // Kanan Atas
+        pockets.add(new Vector2D(width, 0));
+
+        // Kiri Bawah
+        pockets.add(new Vector2D(0, height));
+        // Tengah Bawah
+        pockets.add(new Vector2D(width / 2, height));
+        // Kanan Bawah
+        pockets.add(new Vector2D(width, height));
     }
 
     @Override
-    public void update(double deltaTime) {}
+    public void update(double deltaTime) {
+        // Meja adalah objek statis, tidak memerlukan update logika per frame.
+    }
 
+    /**
+     * Menggambar representasi visual meja secara berlapis.
+     */
     @Override
     public void draw(GraphicsContext gc) {
-        gc.setFill(Color.rgb(80, 40, 10));
+        // 1. Gambar Background Lantai (agar tidak ada sisa frame sebelumnya di luar meja)
+        gc.setFill(Color.rgb(20, 20, 20));
+        gc.fillRect(-100, -100, width + 500, height + 500);
+
+        // Simpan state grafis sebelum transformasi koordinat
+        gc.save();
+        // Geser titik (0,0) menggambar ke area dalam dinding
+        gc.translate(wallThickness, wallThickness);
+
+        // 2. Gambar Frame Kayu (Bingkai Luar)
+        gc.setFill(Color.SADDLEBROWN.darker());
+        gc.fillRect(-wallThickness, -wallThickness, width + wallThickness * 2, height + wallThickness * 2);
+
+        // 3. Gambar Karpet Hijau (Area Permainan)
+        gc.setFill(Color.web("#006400"));
         gc.fillRect(0, 0, width, height);
-        gc.setStroke(Color.rgb(120, 70, 30));
-        gc.setLineWidth(4);
-        gc.strokeRect(4, 4, width - 8, height - 8);
 
-        gc.setFill(Color.rgb(0, 100, 30));
-        gc.fillRoundRect(railSize, railSize, width - (railSize * 2), height - (railSize * 2), 12, 12);
+        // 4. Gambar Detail Visual (Diamond Sights & Garis Break)
+        drawDiamonds(gc);
+        drawBreakLine(gc);
 
-        for (Vector2D pocket : pockets) {
-            RadialGradient holeGrad = new RadialGradient(
-                    0, 0, pocket.getX(), pocket.getY(), pocketRadius,
-                    false, CycleMethod.NO_CYCLE,
-                    new Stop(0.0, Color.BLACK),
-                    new Stop(0.8, Color.rgb(20, 20, 20)),
-                    new Stop(1.0, Color.rgb(60, 40, 20))
-            );
-            gc.setFill(holeGrad);
-            gc.fillOval(pocket.getX() - pocketRadius, pocket.getY() - pocketRadius, pocketRadius * 2, pocketRadius * 2);
-
-            gc.setStroke(Color.rgb(40, 20, 5));
-            gc.setLineWidth(2);
-            gc.strokeOval(pocket.getX() - pocketRadius, pocket.getY() - pocketRadius, pocketRadius * 2, pocketRadius * 2);
+        // 5. Gambar 6 Lubang (Pockets)
+        gc.setFill(Color.BLACK);
+        for (Vector2D p : pockets) {
+            // Menggambar lingkaran hitam di posisi lubang
+            gc.fillOval(p.getX() - pocketRadius, p.getY() - pocketRadius, pocketRadius * 2, pocketRadius * 2);
         }
 
-        drawDetails(gc);
+        // Kembalikan state grafis ke posisi semula
+        gc.restore();
     }
 
-    private void drawDetails(GraphicsContext gc) {
-        gc.setFill(Color.WHITESMOKE);
-        double markerSize = 8;
-        double offset = railSize / 2;
+    /**
+     * Menggambar garis putih tipis (Head String) dan titik Head Spot.
+     */
+    private void drawBreakLine(GraphicsContext gc) {
+        double breakLineX = width * 0.25; // Posisi 1/4 dari kiri meja
 
-        for (int i = 1; i < 8; i++) {
-            if (i == 4) continue;
-            double x = railSize + (i * (width - 2 * railSize) / 8);
-            drawDiamond(gc, x, offset, markerSize);
-            drawDiamond(gc, x, height - offset, markerSize);
-        }
+        // A. Gambar Garis Putih Tipis
+        gc.setStroke(Color.rgb(255, 255, 255, 0.5));
+        gc.setLineWidth(2);
+        gc.strokeLine(breakLineX, 0, breakLineX, height);
+
+        // B. Gambar Titik Head Spot (Titik tengah di garis break)
+        gc.setFill(Color.WHITE);
+        double spotSize = 6;
+        gc.fillOval(breakLineX - spotSize / 2, (height / 2) - spotSize / 2, spotSize, spotSize);
+    }
+
+    /**
+     * Menggambar titik-titik penanda (Diamonds) di bingkai kayu meja.
+     */
+    private void drawDiamonds(GraphicsContext gc) {
+        gc.setFill(Color.BEIGE);
+        double dSize = 5;
+        // Menggambar 3 titik di setiap sisi vertikal (kiri dan kanan)
         for (int i = 1; i < 4; i++) {
-            double y = railSize + (i * (height - 2 * railSize) / 4);
-            drawDiamond(gc, offset, y, markerSize);
-            drawDiamond(gc, width - offset, y, markerSize);
+            gc.fillOval(-wallThickness / 2, (height / 4) * i, dSize, dSize);
+            gc.fillOval(width + wallThickness / 2 - dSize, (height / 4) * i, dSize, dSize);
         }
-
-        gc.setStroke(Color.rgb(255, 255, 255, 0.25));
-        gc.setLineWidth(1);
-        double headStringX = width * 0.25;
-        gc.strokeLine(headStringX, railSize, headStringX, height - railSize);
     }
 
-    private void drawDiamond(GraphicsContext gc, double cx, double cy, double size) {
-        double[] xPoints = {cx, cx + size/1.5, cx, cx - size/1.5};
-        double[] yPoints = {cy - size/1.5, cy, cy + size/1.5, cy};
-        gc.fillPolygon(xPoints, yPoints, 4);
+    /**
+     * Memeriksa apakah sebuah bola telah masuk ke dalam salah satu lubang.
+     *
+     * @param ball Objek bola yang akan diperiksa.
+     * @return true jika bola masuk ke dalam radius deteksi lubang, false jika tidak.
+     */
+    public boolean isBallInPocket(Ball ball) {
+        for (Vector2D pocketPos : pockets) {
+            // Hitung jarak Euclidean antara pusat bola dan pusat lubang
+            double dx = ball.getPosition().getX() - pocketPos.getX();
+            double dy = ball.getPosition().getY() - pocketPos.getY();
+            double distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Syarat masuk lubang: jarak < (radius lubang * toleransi)
+            if (distance < pocketRadius * POCKET_TOLERANCE) {
+                return true; // Bola masuk lubang
+            }
+        }
+        return false; // Bola tidak masuk lubang
     }
+
+    // --- Getter ---
 
     public double getWidth() { return width; }
     public double getHeight() { return height; }
-    public double getRailSize() { return railSize; }
-    public double getPocketRadius() { return pocketRadius; }
-    public List<Vector2D> getPockets() { return pockets; }
+    public double getWallThickness() { return wallThickness; }
 }

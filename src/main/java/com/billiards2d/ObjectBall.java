@@ -2,22 +2,37 @@ package com.billiards2d;
 
 import javafx.scene.paint.Color;
 
+/**
+ * Kelas yang merepresentasikan Bola Objek (Object Ball).
+ * <p>
+ * Ini adalah bola-bola target (berwarna/bernomor) yang harus dimasukkan ke dalam lubang.
+ * Kelas ini mewarisi sifat fisik dari {@link Ball} dan menambahkan properti tipe bola.
+ * </p>
+ */
 public class ObjectBall extends Ball {
-    public ObjectBall(Vector2D position, int number) {
-        super(position, getColorForNumber(number), 15.0, number);
+
+    /** Tipe atau identitas bola (misalnya "RED", "BLUE", "8"). */
+    private String type;
+
+    /**
+     * Konstruktor untuk membuat Bola Objek.
+     *
+     * @param position Posisi awal bola (Vector2D).
+     * @param type     String yang merepresentasikan warna atau tipe bola.
+     * String ini akan dikonversi menjadi objek {@link Color}.
+     */
+    public ObjectBall(Vector2D position, String type) {
+        // Memanggil konstruktor superclass (Ball)
+        // Mengonversi string tipe menjadi warna JavaFX
+        super(position, Color.valueOf(type), 10.0);
+        this.type = type;
     }
 
-    public static Color getColorForNumber(int number) {
-        return switch (number) {
-            case 1, 9 -> Color.YELLOW;
-            case 2, 10 -> Color.BLUE;
-            case 3, 11 -> Color.RED;
-            case 4, 12 -> Color.PURPLE;
-            case 5, 13 -> Color.ORANGE;
-            case 6, 14 -> Color.GREEN;
-            case 7, 15 -> Color.MAROON;
-            case 8 -> Color.BLACK;
-            default -> Color.GRAY;
-        };
+    /**
+     * Mengembalikan tipe bola.
+     * @return String tipe bola.
+     */
+    public String getType() {
+        return type;
     }
 }
