@@ -12,7 +12,8 @@ public class GameBus {
         TURN_ENDED,
         SHOT_TAKEN,
         GAME_STATE_CHANGE,
-        REMOTE_SHOT
+        REMOTE_SHOT,
+        GAME_SYNC
     }
 
     private static final Map<EventType, List<Consumer<Object>>> listeners = new HashMap<>();

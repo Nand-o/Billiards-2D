@@ -19,7 +19,6 @@ public class PhysicsEngine implements GameObject {
 
     private Table table;
     private List<GameObject> gameObjects;
-    private int playerScore = 0; // Legacy score variable
 
     /**
      * Konstruktor PhysicsEngine.
@@ -32,10 +31,6 @@ public class PhysicsEngine implements GameObject {
         this.gameObjects = gameObjects;
     }
 
-    public int getPlayerScore() {
-        return playerScore;
-    }
-
     /**
      * Memperbarui simulasi fisika untuk satu frame.
      * Metode ini memeriksa interaksi setiap bola terhadap lingkungan dan bola lainnya.
@@ -44,8 +39,10 @@ public class PhysicsEngine implements GameObject {
      */
     @Override
     public void update(double deltaTime) {
-        for (GameObject obj1 : gameObjects) {
-            // Hanya proses objek yang bertipe Ball
+        // Gunakan loop index (bukan iterator) untuk menghindari crash jika list berubah
+        for (int i = 0; i < gameObjects.size(); i++) {
+            GameObject obj1 = gameObjects.get(i);
+
             if (!(obj1 instanceof Ball)) continue;
             Ball b1 = (Ball) obj1;
 
@@ -55,30 +52,33 @@ public class PhysicsEngine implements GameObject {
             if (table.isBallInPocket(b1)) {
 
                 // NOTIFIKASI KE APP (Via GameBus)
+                // PhysicsEngine tidak mengubah skor, hanya lapor "Bola Masuk"
                 GameBus.publish(GameBus.EventType.BALL_POTTED, b1);
 
                 if (b1 instanceof CueBall) {
                     CueBall cb = (CueBall) b1;
                     cb.setActive(false);
-                    cb.setPendingRespawn(true);
+                    cb.setPendingRespawn(true); // Tandai minta respawn
                     cb.setVelocity(new Vector2D(0,0));
-                    // Penalti simple
-                    playerScore = Math.max(0, playerScore - 10);
                 } else {
-                    b1.setActive(false);
-                    playerScore += 10;
+                    b1.setActive(false); // Hilangkan bola dari meja
                 }
-                continue;
+                continue; // Skip logika collision untuk bola ini
             }
 
             // --- 2. Cek Tumbukan Dinding (Wall Collision) ---
             checkWallCollision(b1);
 
             // --- 3. Cek Tumbukan Antar Bola (Ball-to-Ball Collision) ---
-            for (GameObject obj2 : gameObjects) {
+            for (int j = 0; j < gameObjects.size(); j++) {
+                if (i == j) continue; // Skip diri sendiri
+
+                GameObject obj2 = gameObjects.get(j);
                 if (!(obj2 instanceof Ball)) continue;
+
                 Ball b2 = (Ball) obj2;
-                if (b1 == b2) continue;
+                if (!b2.isActive()) continue; // Skip bola mati
+
                 resolveBallCollision(b1, b2);
             }
         }
