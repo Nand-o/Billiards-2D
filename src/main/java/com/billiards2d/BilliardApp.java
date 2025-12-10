@@ -1,11 +1,20 @@
 package com.billiards2d;
 
+import com.billiards2d.core.GameBus;
+import com.billiards2d.net.NetworkManager;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
@@ -13,6 +22,7 @@ import javafx.scene.input.MouseEvent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Kelas utama aplikasi (Main Entry Point) yang mengatur siklus hidup permainan.
@@ -30,16 +40,31 @@ public class BilliardApp extends Application {
     private static final int GAME_HEIGHT = 450;
 
     private GraphicsContext gc;
+    private StackPane rootPane; // Root pane untuk menumpuk Canvas dan Menu
+    private VBox menuBox;       // Container UI Menu
+    private Button hamburgerBtn; // Tombol Menu (Fitur Baru)
+
     // Daftar semua objek game yang perlu di-update setiap frame
     private final List<GameObject> gameObjects = new ArrayList<>();
 
-    private Table table;       // Referensi ke objek Meja
+    private Table table;        // Referensi ke objek Meja
     private CueStick cueStick; // Referensi ke Stik untuk input handling
-    private CueBall cueBall;   // Referensi ke Bola Putih untuk HUD info
+    private CueBall cueBall;    // Referensi ke Bola Putih untuk HUD info
     private PhysicsEngine physicsEngine; // Referensi ke Physics Engine
+    private NetworkManager networkManager; // Manager Koneksi
 
     // Variabel debug untuk menampilkan info di HUD (Heads-Up Display)
     private double mouseX, mouseY;
+
+    // --- State Permainan (Fitur Baru) ---
+    private boolean isGameRunning = false;
+    private boolean isOnline = false;
+    private boolean isMyTurn = true; // Default true untuk Local/Host
+    private int currentPlayer = 1;
+    private int p1Score = 0;
+    private int p2Score = 0;
+    private boolean wasBallsMoving = false;
+    private boolean ballPottedThisTurn = false;
 
     /**
      * Metode utama JavaFX yang dipanggil saat aplikasi dimulai.
@@ -47,6 +72,9 @@ public class BilliardApp extends Application {
      */
     @Override
     public void start(Stage primaryStage) {
+        // Init Event Bus
+        setupGameBus();
+
         // 1. Init Table untuk menghitung ukuran total window (Area Main + Dinding)
         table = new Table(GAME_WIDTH, GAME_HEIGHT);
         double totalW = GAME_WIDTH + (table.getWallThickness() * 2);
@@ -56,51 +84,174 @@ public class BilliardApp extends Application {
         Canvas canvas = new Canvas(totalW, totalH);
         gc = canvas.getGraphicsContext2D();
 
-        StackPane root = new StackPane(canvas);
-        Scene scene = new Scene(root);
-        root.setStyle("-fx-background-color: #222;"); // Background gelap di luar meja
+        rootPane = new StackPane(canvas); // Canvas layer paling bawah
+        rootPane.setStyle("-fx-background-color: #222;");
 
-        // 3. Input Handling (Mouse)
-        // Kita perlu menggeser (offset) koordinat mouse karena area bermain dimulai
-        // setelah ketebalan dinding meja.
+        // 3. Buat UI (Hamburger & Menu)
+        createHamburgerButton(); // Tombol Hamburger (Layer Tengah)
+        createMainMenu();        // Menu Overlay (Layer Paling Atas)
+
+        Scene scene = new Scene(rootPane, totalW, totalH);
+
+        // 4. Input Handling (Mouse)
         double offset = table.getWallThickness();
 
         canvas.setOnMouseMoved(e -> {
-            mouseX = e.getX() - offset; // Koordinat relatif terhadap area main
+            if (!isGameRunning) return;
+            if (isOnline && !isMyTurn) return;
+
+            mouseX = e.getX() - offset;
             mouseY = e.getY() - offset;
             cueStick.handleMouseMoved(offsetEvent(e, -offset));
         });
 
-        canvas.setOnMousePressed(e -> cueStick.handleMousePressed(offsetEvent(e, -offset)));
+        canvas.setOnMousePressed(e -> {
+            if (!isGameRunning || (isOnline && !isMyTurn)) return;
+            cueStick.handleMousePressed(offsetEvent(e, -offset));
+        });
 
         canvas.setOnMouseDragged(e -> {
+            if (!isGameRunning || (isOnline && !isMyTurn)) return;
             mouseX = e.getX() - offset;
             mouseY = e.getY() - offset;
             cueStick.handleMouseDragged(offsetEvent(e, -offset));
         });
 
-        canvas.setOnMouseReleased(e -> cueStick.handleMouseReleased(offsetEvent(e, -offset)));
+        canvas.setOnMouseReleased(e -> {
+            if (!isGameRunning || (isOnline && !isMyTurn)) return;
+            cueStick.handleMouseReleased(offsetEvent(e, -offset));
+        });
 
-        // 4. Finalisasi Stage
-        primaryStage.setTitle("Billiard Simulation");
+        // 5. Finalisasi Stage
+        primaryStage.setTitle("Billiard Simulation - 2 Player & Online");
         primaryStage.setScene(scene);
-        primaryStage.setResizable(false); // Mencegah resize agar rasio terjaga
+        primaryStage.setResizable(false);
         primaryStage.show();
 
-        // 5. Init Objek Game dan Mulai Loop
-        initializeGameObjects();
+        // 6. Mulai Loop
         GameLoop gameLoop = new GameLoop();
         gameLoop.start();
     }
 
-    /**
-     * Helper method untuk membuat event mouse baru dengan koordinat yang sudah digeser.
-     * Ini penting agar posisi mouse di logika game sinkron dengan visual meja.
-     */
+    private void setupGameBus() {
+        GameBus.subscribe(GameBus.EventType.BALL_POTTED, o -> {
+            Ball b = (Ball) o;
+            if (!(b instanceof CueBall)) {
+                ballPottedThisTurn = true;
+                if (currentPlayer == 1) p1Score++;
+                else p2Score++;
+            }
+        });
+
+        GameBus.subscribe(GameBus.EventType.REMOTE_SHOT, o -> {
+            Vector2D force = (Vector2D) o;
+            cueBall.hit(force);
+            if (isOnline) isMyTurn = true;
+        });
+
+        GameBus.subscribe(GameBus.EventType.SHOT_TAKEN, o -> {
+            if (isOnline) isMyTurn = false;
+        });
+    }
+
+    // --- HAMBURGER BUTTON ---
+    private void createHamburgerButton() {
+        hamburgerBtn = new Button("☰"); // Unicode Hamburger Icon
+        hamburgerBtn.setFont(Font.font("Consolas", 24));
+        // Style transparan biar menyatu dengan background
+        hamburgerBtn.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-text-fill: white; -fx-cursor: hand; -fx-background-radius: 5;");
+
+        // Posisikan di pojok kiri atas
+        StackPane.setAlignment(hamburgerBtn, Pos.TOP_LEFT);
+        StackPane.setMargin(hamburgerBtn, new Insets(10));
+
+        // Logic tombol: Pause game & Buka Menu
+        hamburgerBtn.setOnAction(e -> {
+            isGameRunning = false;
+            menuBox.setVisible(true);
+            hamburgerBtn.setVisible(false); // Sembunyikan tombol saat menu terbuka
+        });
+
+        hamburgerBtn.setVisible(false); // Default hidden (karena awal mulai di menu)
+        rootPane.getChildren().add(hamburgerBtn);
+    }
+
+    private void createMainMenu() {
+        menuBox = new VBox(15);
+        menuBox.setAlignment(Pos.CENTER);
+        menuBox.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85); -fx-padding: 20;");
+
+        Label title = new Label("BILLIARDS 2D");
+        title.setTextFill(Color.WHITE);
+        title.setFont(Font.font("Impact", 48));
+
+        Button btnPractice = createButton("PRACTICE MODE", () -> startLocal(false));
+        Button btnLocal = createButton("2 PLAYER (LOCAL)", () -> startLocal(true));
+        Button btnHost = createButton("ONLINE: HOST GAME", this::startHost);
+        Button btnJoin = createButton("ONLINE: JOIN GAME", this::startJoin);
+
+        // Tombol Exit yang berfungsi
+        Button btnExit = createButton("EXIT", Platform::exit);
+
+        menuBox.getChildren().addAll(title, btnPractice, btnLocal, btnHost, btnJoin, btnExit);
+        rootPane.getChildren().add(menuBox);
+    }
+
+    private Button createButton(String text, Runnable action) {
+        Button btn = new Button(text);
+        btn.setMinWidth(250);
+        btn.setStyle("-fx-background-color: #333; -fx-text-fill: white; -fx-font-size: 16px; -fx-border-color: #666; -fx-border-width: 2px;");
+        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #555; -fx-text-fill: white; -fx-font-size: 16px; -fx-border-color: #888; -fx-border-width: 2px;"));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: #333; -fx-text-fill: white; -fx-font-size: 16px; -fx-border-color: #666; -fx-border-width: 2px;"));
+        btn.setOnAction(e -> action.run());
+        return btn;
+    }
+
+    // --- Mode Handlers ---
+    private void startLocal(boolean twoPlayer) {
+        isOnline = false;
+        isMyTurn = true;
+        resetGame();
+
+        menuBox.setVisible(false);     // Tutup Menu
+        hamburgerBtn.setVisible(true); // Munculkan Tombol Hamburger
+        isGameRunning = true;
+    }
+
+    private void startHost() {
+        networkManager = new NetworkManager();
+        networkManager.startServer(12345);
+        isOnline = true;
+        isMyTurn = true;
+        resetGame();
+
+        menuBox.setVisible(false);
+        hamburgerBtn.setVisible(true);
+        isGameRunning = true;
+    }
+
+    private void startJoin() {
+        TextInputDialog dialog = new TextInputDialog("localhost");
+        dialog.setTitle("Join Game");
+        dialog.setHeaderText("Enter Host IP:");
+        Optional<String> result = dialog.showAndWait();
+        result.ifPresent(ip -> {
+            networkManager = new NetworkManager();
+            networkManager.connectClient(ip, 12345);
+            isOnline = true;
+            isMyTurn = false;
+            resetGame();
+
+            menuBox.setVisible(false);
+            hamburgerBtn.setVisible(true);
+            isGameRunning = true;
+        });
+    }
+
     private MouseEvent offsetEvent(MouseEvent e, double shift) {
         return new MouseEvent(
                 e.getSource(), e.getTarget(), e.getEventType(),
-                e.getX() + shift, e.getY() + shift, // Koordinat lokal digeser
+                e.getX() + shift, e.getY() + shift,
                 e.getScreenX(), e.getScreenY(),
                 e.getButton(), e.getClickCount(),
                 e.isShiftDown(), e.isControlDown(), e.isAltDown(), e.isMetaDown(),
@@ -109,178 +260,131 @@ public class BilliardApp extends Application {
         );
     }
 
-    /**
-     * Membuat dan mendaftarkan semua objek permainan awal (Bola, Stik, Engine).
-     */
-    private void initializeGameObjects() {
-        // Inisialisasi Bola Putih
+    private void resetGame() {
+        gameObjects.clear();
+        p1Score = 0; p2Score = 0; currentPlayer = 1;
+
         cueBall = new CueBall(new Vector2D(GAME_WIDTH/4.0, GAME_HEIGHT/2.0));
 
-        // List sementara untuk menampung semua bola (Putih + Warna)
         List<Ball> allBalls = new ArrayList<>();
         allBalls.add(cueBall);
-
-        // Inisialisasi Bola Warna (15 bola dalam formasi segitiga)
         gameObjects.add(cueBall);
+
         setupRack(allBalls);
 
-        // Inisialisasi Stik (Butuh referensi ke bola putih dan semua bola untuk prediksi)
         this.cueStick = new CueStick(cueBall, allBalls, GAME_WIDTH, GAME_HEIGHT);
-
-        // Inisialisasi Physics Engine (Logika Fisika)
-        // PhysicsEngine juga dimasukkan ke gameObjects agar method update()-nya dipanggil di loop
         this.physicsEngine = new PhysicsEngine(table, gameObjects);
-        // Note: physicsEngine butuh akses ke list gameObjects untuk mendeteksi semua bola
-        gameObjects.addAll(allBalls); // Pastikan semua bola terdaftar di gameObjects
+
+        gameObjects.addAll(allBalls);
         gameObjects.add(physicsEngine);
     }
 
-    // Method helper untuk menyusun 15 bola dalam formasi segitiga
     private void setupRack(List<Ball> ballList) {
         double radius = 10.0;
-        // Posisi puncak segitiga (Foot Spot), kira-kira di 75% lebar meja
         double startX = GAME_WIDTH * 0.75;
         double startY = GAME_HEIGHT / 2.0;
 
-        // Array warna untuk variasi bola (Siklus warna standar biliar)
         String[] colors = {
                 "YELLOW", "BLUE", "RED", "PURPLE", "ORANGE", "GREEN", "MAROON", "BLACK",
                 "YELLOW", "BLUE", "RED", "PURPLE", "ORANGE", "GREEN", "MAROON"
         };
 
         int ballCount = 0;
-
-        // Loop untuk 5 kolom (baris vertikal segitiga)
-        // Kolom 0 = 1 bola (ujung), Kolom 4 = 5 bola (belakang)
         for (int col = 0; col < 5; col++) {
             for (int row = 0; row <= col; row++) {
-                // Hitung Posisi X:
-                // Setiap kolom mundur sejauh (radius * akar 3) agar rapat
                 double x = startX + (col * (radius * Math.sqrt(3)));
-
-                // Hitung Posisi Y:
-                // Kita perlu menengahkan barisan bola secara vertikal terhadap startY
-                // Tinggi total kolom ini = (jumlah bola * diameter)
-                // Posisi awal (atas) = Tengah - (Setengah Tinggi)
                 double rowHeight = col * (radius * 2);
                 double yTop = startY - (rowHeight / 2.0);
-
-                // Posisi Y bola saat ini
                 double y = yTop + (row * (radius * 2));
 
-                // Tentukan warna (Bola ke-5 di tengah biasanya Hitam/8-Ball)
-                String colorName = colors[ballCount % colors.length];
-                if (col == 2 && row == 1) colorName = "BLACK";
+                ObjectBall ball = new ObjectBall(new Vector2D(x, y), colors[ballCount % colors.length]);
 
-                // Buat Bola
-                ObjectBall ball = new ObjectBall(new Vector2D(x, y), colorName);
-
-                // Tambahkan ke list (PENTING: Tambah ke kedua list)
-                ballList.add(ball);     // Untuk Physics & CueStick
-                gameObjects.add(ball);  // Untuk Rendering & Update Loop
-
+                ballList.add(ball);
+                gameObjects.add(ball);
                 ballCount++;
             }
         }
     }
 
-    /**
-     * Inner Class yang menangani Game Loop utama menggunakan AnimationTimer.
-     * Berjalan sekitar 60 kali per detik (tergantung refresh rate monitor).
-     */
     private class GameLoop extends AnimationTimer {
         private long lastNanoTime = System.nanoTime();
 
         @Override
         public void handle(long currentNanoTime) {
-            // 1. Hitung Delta Time (waktu dalam detik sejak frame terakhir)
             double deltaTime = (currentNanoTime - lastNanoTime) / 1_000_000_000.0;
             lastNanoTime = currentNanoTime;
 
-            // Safety Cap: Jika lag parah (dt > 0.05s), batasi dt agar fisika tidak "meledak" (tunneling)
             if (deltaTime > 0.05) deltaTime = 0.05;
 
-            // --- UPDATE LOGIC (PHYSICS) ---
-            // Physics Sub-stepping: Memecah satu update besar menjadi beberapa langkah kecil
-            // untuk meningkatkan akurasi deteksi tabrakan dan mencegah bola tembus dinding.
+            gc.clearRect(0, 0, gc.getCanvas().getWidth(), gc.getCanvas().getHeight());
+            table.draw(gc);
+
+            if (!isGameRunning) return;
+
+            // --- UPDATE LOGIC ---
+            boolean anyMoving = false;
+
             int subSteps = 4;
             double subDeltaTime = deltaTime / subSteps;
 
             for (int step = 0; step < subSteps; step++) {
                 for (GameObject obj : gameObjects) {
-                    obj.update(subDeltaTime); // Update posisi & fisika
+                    obj.update(subDeltaTime);
+                    if (obj instanceof Ball && ((Ball) obj).getVelocity().length() > 0.1) {
+                        anyMoving = true;
+                    }
                 }
             }
 
-            // Update stik (visual/input) cukup sekali per frame, tidak perlu sub-stepping
             cueStick.update(deltaTime);
 
-            // --- RENDER LOGIC (DRAWING) ---
-            // Bersihkan layar sebelum menggambar frame baru
-            gc.clearRect(0, 0, gc.getCanvas().getWidth(), gc.getCanvas().getHeight());
+            // --- TURN LOGIC ---
+            if (wasBallsMoving && !anyMoving) {
+                if (!ballPottedThisTurn) {
+                    currentPlayer = (currentPlayer == 1) ? 2 : 1;
+                }
+                ballPottedThisTurn = false;
+            }
+            wasBallsMoving = anyMoving;
 
-            // 1. Gambar Meja (Background Layer)
-            table.draw(gc);
-
-            // 2. Gambar Objek Game (Middle Layer)
-            // Geser koordinat (translate) agar (0,0) game berada di dalam dinding meja
+            // --- RENDER LOGIC ---
             gc.save();
             gc.translate(table.getWallThickness(), table.getWallThickness());
 
             for (GameObject obj : gameObjects) {
-                // Hanya gambar bola di sini (PhysicsEngine tidak punya visual)
                 if(obj instanceof Ball) obj.draw(gc);
             }
-
-            // Gambar Stik paling atas agar tidak tertutup bola
             cueStick.draw(gc);
 
-            gc.restore(); // Kembalikan koordinat normal (termasuk dinding)
+            gc.restore();
 
-            // --- LOGIKA RESPAWN CUE BALL ---
+            // --- RESPAWN ---
             if (cueBall.isPendingRespawn()) {
-                // Cek apakah semua bola LAIN (selain cueball) sudah berhenti
-                boolean allStopped = true;
-                for (GameObject obj : gameObjects) {
-                    if (obj instanceof Ball && obj != cueBall) {
-                        Ball b = (Ball) obj;
-                        // Cek jika bola aktif dan masih bergerak
-                        if (b.isActive() && b.getVelocity().length() > 0.1) {
-                            allStopped = false;
-                            break;
-                        }
-                    }
-                }
-
-                // Jika semua sudah berhenti, baru munculkan bola putih
-                if (allStopped) {
-                    cueBall.setPosition(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0)); // Posisi Reset
+                if (!anyMoving) {
+                    cueBall.setPosition(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0));
                     cueBall.setVelocity(new Vector2D(0, 0));
                     cueBall.setPendingRespawn(false);
-                    cueBall.setActive(true); // Aktifkan kembali fisikanya
+                    cueBall.setActive(true);
                 }
             }
 
-            // 3. Gambar HUD (Overlay Layer) - Info Debug
             drawHUD();
         }
 
         private void drawHUD() {
             gc.setFill(Color.WHITE);
-            gc.setFont(Font.font("Consolas", 14));
-            // Menampilkan koordinat mouse relatif terhadap area main
-            gc.fillText(String.format("Mouse: (%.0f, %.0f)", mouseX, mouseY), 20, 30);
+            gc.setFont(Font.font("Consolas", 20));
+            gc.fillText("P1: " + p1Score, 30, 40);
+            gc.fillText("P2: " + p2Score, GAME_WIDTH - 100, 40);
 
-            // Menampilkan kecepatan bola putih
-            double speed = cueBall.getVelocity().length();
-            gc.fillText(String.format("Power: %.2f", speed), 20, 50);
-
-            // Tampilkan Skor
-            gc.setFont(Font.font("Consolas", 20)); // Font lebih besar
             gc.setFill(Color.YELLOW);
-            if (physicsEngine != null) {
-                gc.fillText("SCORE: " + physicsEngine.getPlayerScore(), 20, 80);
+            String turnText;
+            if (isOnline) {
+                turnText = isMyTurn ? "YOUR TURN" : "OPPONENT TURN";
+            } else {
+                turnText = "PLAYER " + currentPlayer;
             }
+            gc.fillText(turnText, GAME_WIDTH/2.0 - 60, 40);
         }
     }
 

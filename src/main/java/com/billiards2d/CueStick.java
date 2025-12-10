@@ -1,5 +1,6 @@
 package com.billiards2d;
 
+import com.billiards2d.core.GameBus;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
@@ -25,7 +26,7 @@ public class CueStick implements GameObject {
     private Vector2D aimStart;              // Posisi mouse saat klik pertama kali
     private Vector2D aimCurrent;            // Posisi mouse saat ini (saat di-drag)
     private Vector2D mousePos = new Vector2D(0, 0); // Posisi mouse umum (untuk rotasi stik)
-    private double lockedAngleRad = 0;      // Sudut stik yang terkunci saat mulai menarih
+    private double lockedAngleRad = 0;      // Sudut stik yang terkunci saat mulai menarik
 
     // --- Konstanta Fisika & Visual ---
     // Jarak maksimal stik bisa ditarik mundur secara visual (pixel)
@@ -221,26 +222,37 @@ public class CueStick implements GameObject {
 
         double stickLen = 300;
         double stickWidth = 8;
+        // Jarak ujung stik dari pusat bola
         double tipOffset = cueBall.getRadius() + pullDistance;
 
-        // Gambar Batang Kayu
+        // Gambar batang stik (Warna Kayu)
         gc.setFill(Color.SADDLEBROWN);
+        // fillRect(x, y, w, h) -> Digambar relatif terhadap rotasi & translasi
         gc.fillRect(tipOffset, -stickWidth/2, stickLen, stickWidth);
-        // Gambar Ujung Stik (Tip)
+
+        // Gambar ujung stik (Tip, Warna Cyan/Biru Muda)
         gc.setFill(Color.CYAN);
         gc.fillRect(tipOffset, -stickWidth/2, 5, stickWidth);
 
         gc.restore();
     }
 
-    // --- EVENT HANDLERS (Input Mouse) ---
+    // --- EVENT HANDLER (Input Mouse) ---
 
+    /**
+     * Menangani pergerakan mouse untuk membidik (sebelum klik).
+     */
     public void handleMouseMoved(MouseEvent e) {
-        if (!isAiming) this.mousePos = new Vector2D(e.getX(), e.getY());
+        if (!isAiming) {
+            this.mousePos = new Vector2D(e.getX(), e.getY());
+        }
     }
 
+    /**
+     * Menangani event klik mouse (awal drag).
+     * Mengunci sudut bidikan dan menyimpan posisi awal mouse.
+     */
     public void handleMousePressed(MouseEvent e) {
-        // Hanya bisa mulai membidik jika bola berhenti
         if (!areAllBallsStopped()) return;
 
         isAiming = true;
@@ -248,48 +260,62 @@ public class CueStick implements GameObject {
         aimCurrent = new Vector2D(e.getX(), e.getY());
     }
 
+    /**
+     * Menangani event drag mouse (mengatur kekuatan).
+     */
     public void handleMouseDragged(MouseEvent e) {
         if (!isAiming) return;
         aimCurrent = new Vector2D(e.getX(), e.getY());
     }
 
+    /**
+     * Menangani event lepas klik mouse (melakukan tembakan).
+     * Menghitung gaya berdasarkan jarak tarik dan menerapkannya ke bola putih.
+     */
     public void handleMouseReleased(MouseEvent e) {
         if (!isAiming) return;
 
-        // 1. Hitung jarak tarik (pixel)
+        // Hitung jarak tarik (drag distance)
         double dragDist = aimStart.subtract(aimCurrent).length();
 
-        // 2. Batasi jarak tarik visual agar tidak melebihi batas
+        // Batasi jarak tarik maksimum
         if (dragDist > MAX_DRAG_DISTANCE) dragDist = MAX_DRAG_DISTANCE;
 
-        // 3. Hitung Rasio (0.0 sampai 1.0)
+        // Hitung rasio kekuatan (0.0 - 1.0)
         double dragRatio = dragDist / MAX_DRAG_DISTANCE;
 
-        // 4. Terapkan Kurva Kuadratik (Agar tarikan awal halus)
-        double powerCurve = dragRatio * dragRatio;
+        // Gunakan fungsi kuadratik agar kontrol kekuatan lebih presisi di area kecil
+        double finalForce = (dragRatio * dragRatio) * MAX_FORCE;
 
-        // 5. Konversi ke Force (Kekuatan Akhir)
-        double finalForce = powerCurve * MAX_FORCE;
-
-        // 6. Hitung Vektor Arah Tembakan
-        double shootAngle = lockedAngleRad + Math.PI;
-        Vector2D direction = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
-
-        // 7. Eksekusi Pukulan (dengan deadzone kecil)
+        // Hanya tembak jika gaya cukup signifikan
         if (finalForce > 5) {
-            cueBall.hit(direction.multiply(finalForce));
+            // Arah tembakan selalu kebalikan dari stik (sudut stik + 180 derajat)
+            double shootAngle = lockedAngleRad + Math.PI;
+            Vector2D direction = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
+            Vector2D forceVector = direction.multiply(finalForce);
+
+            // 1. Terapkan gaya ke bola (Fisika Lokal)
+            cueBall.hit(forceVector);
+
+            // 2. Kirim Event ke Network Manager (Fitur Online)
+            // Ini satu-satunya tambahan logic agar online tetap jalan
+            GameBus.publish(GameBus.EventType.SHOT_TAKEN, forceVector);
         }
+
+        // Reset status aiming
         isAiming = false;
     }
 
-    // Helper: Cek apakah SEMUA bola (putih + warna) sudah berhenti
+    /**
+     * Helper untuk mengecek apakah semua bola sudah berhenti bergerak.
+     * Permainan hanya mengizinkan input jika semua bola diam.
+     */
     private boolean areAllBallsStopped() {
         for (Ball ball : allBalls) {
-            // Hanya cek bola yang masih aktif di meja
             if (ball.isActive() && ball.getVelocity().length() > 0.1) {
-                return false; // Masih ada yang bergerak
+                return false;
             }
         }
-        return true; // Semua diam
+        return true;
     }
 }
