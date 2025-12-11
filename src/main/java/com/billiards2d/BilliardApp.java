@@ -8,19 +8,24 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
-import javafx.scene.input.MouseEvent;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class BilliardApp extends Application {
 
-    // --- KONFIGURASI UKURAN GAME (AREA HIJAU) ---
-    // Ini adalah ukuran "Dunia Fisika" kita.
+    // --- KONFIGURASI ---
     private static final double GAME_WIDTH = 880;
     private static final double GAME_HEIGHT = 440;
 
+    // SWITCH MODE:
+    // true  = Menggunakan Aturan 8-Ball (Giliran, Solid/Stripes, Win/Loss)
+    // false = Menggunakan Mode Arcade (Skor Bebas)
+    private boolean is8BallMode = true;
+
+    // --- CORE SYSTEMS ---
     private GraphicsContext gc;
     private Canvas canvas;
     private final List<GameObject> gameObjects = new ArrayList<>();
@@ -29,169 +34,198 @@ public class BilliardApp extends Application {
     private CueStick cueStick;
     private CueBall cueBall;
     private PhysicsEngine physicsEngine;
+    private GameRules gameRules; // Wasit 8-Ball
 
-    // Variabel Offset Dinamis (Agar game selalu di tengah layar)
+    // --- STATE VARIABLES ---
     private double currentOffsetX = 0;
     private double currentOffsetY = 0;
 
-    // Debug Info
+    // Flag untuk menandai apakah sebuah giliran (tembakan) sedang berlangsung
+    // Digunakan agar logika Rules hanya dipanggil SATU KALI setelah bola berhenti.
+    private boolean turnInProgress = false;
+
+    // Debug Info Mouse
     private double mouseLogicX, mouseLogicY;
 
     @Override
     public void start(Stage primaryStage) {
-        // 1. Init Logic Game
+        // 1. Init Logic Systems
         table = new Table(GAME_WIDTH, GAME_HEIGHT);
+        gameRules = new GameRules(); // Inisialisasi Wasit
 
-        // 2. Setup Canvas yang Responsif
-        // Kita buat Canvas seukuran window awal (misal 1280x720)
+        // 2. Setup Canvas
         canvas = new Canvas(1280, 720);
         gc = canvas.getGraphicsContext2D();
 
-        // Gunakan Pane biasa agar kita bisa kontrol posisi absolute canvas jika perlu,
-        // tapi di sini kita biarkan canvas memenuhi Pane.
         Pane root = new Pane(canvas);
         root.setStyle("-fx-background-color: #1a1a1a;");
 
         Scene scene = new Scene(root);
-
-        // Binding: Canvas selalu mengikuti ukuran Scene (Window)
         canvas.widthProperty().bind(scene.widthProperty());
         canvas.heightProperty().bind(scene.heightProperty());
 
-        // 3. Input Handling (Mouse)
+        // --- INPUT HANDLING PINTAR (Ball in Hand vs Shooting) ---
+
         canvas.setOnMouseMoved(e -> {
             updateOffsets();
-            // Hitung logika manual (DIJAMIN BENAR)
             double logicX = e.getX() - currentOffsetX;
             double logicY = e.getY() - currentOffsetY;
+            mouseLogicX = logicX; mouseLogicY = logicY;
 
-            mouseLogicX = logicX; // Untuk HUD
-            mouseLogicY = logicY;
-
-            // Kirim angka mentah ke CueStick
-            cueStick.handleMouseMoved(logicX, logicY);
+            if (isBallInHandActive()) {
+                // MODE DRAG: Bola putih mengikuti mouse
+                moveCueBallToMouse(logicX, logicY);
+            } else {
+                // MODE NORMAL: Gerakkan Stik
+                cueStick.handleMouseMoved(logicX, logicY);
+            }
         });
 
         canvas.setOnMousePressed(e -> {
             updateOffsets();
             double logicX = e.getX() - currentOffsetX;
             double logicY = e.getY() - currentOffsetY;
-            cueStick.handleMousePressed(logicX, logicY);
+
+            if (isBallInHandActive()) {
+                // Klik saat Ball in Hand = Mencoba Menaruh Bola
+                tryPlaceCueBall(logicX, logicY);
+            } else {
+                cueStick.handleMousePressed(logicX, logicY);
+            }
         });
 
         canvas.setOnMouseDragged(e -> {
             updateOffsets();
             double logicX = e.getX() - currentOffsetX;
             double logicY = e.getY() - currentOffsetY;
+            mouseLogicX = logicX; mouseLogicY = logicY;
 
-            mouseLogicX = logicX; // Update HUD juga pas drag
-            mouseLogicY = logicY;
-
-            cueStick.handleMouseDragged(logicX, logicY);
+            if (isBallInHandActive()) {
+                moveCueBallToMouse(logicX, logicY);
+            } else {
+                cueStick.handleMouseDragged(logicX, logicY);
+            }
         });
 
         canvas.setOnMouseReleased(e -> {
             updateOffsets();
             double logicX = e.getX() - currentOffsetX;
             double logicY = e.getY() - currentOffsetY;
-            cueStick.handleMouseReleased(logicX, logicY);
+
+            if (!isBallInHandActive()) {
+                cueStick.handleMouseReleased(logicX, logicY);
+            }
         });
 
         // 4. Finalisasi Stage
-        primaryStage.setTitle("Billiard Simulation - Asset Integration");
+        primaryStage.setTitle("Billiard Project - " + (is8BallMode ? "8-Ball Mode" : "Arcade Mode"));
         primaryStage.setScene(scene);
         primaryStage.setWidth(1280);
         primaryStage.setHeight(720);
         primaryStage.show();
 
-        // 5. Init Objek Game dan Mulai Loop
+        // 5. Init Objects & Loop
         initializeGameObjects();
         GameLoop gameLoop = new GameLoop();
         gameLoop.start();
     }
 
-    /**
-     * Menghitung posisi tengah layar berdasarkan ukuran window saat ini.
-     * Ini memastikan koordinat (0,0) game selalu ada di tengah visual.
-     */
+    // --- HELPER METHODS UNTUK BALL IN HAND ---
+
+    private boolean isBallInHandActive() {
+        return is8BallMode && gameRules.isBallInHand();
+    }
+
+    private void moveCueBallToMouse(double x, double y) {
+        // Clamp agar tidak keluar meja
+        double r = cueBall.getRadius();
+        if (x < r) x = r;
+        if (x > GAME_WIDTH - r) x = GAME_WIDTH - r;
+        if (y < r) y = r;
+        if (y > GAME_HEIGHT - r) y = GAME_HEIGHT - r;
+
+        cueBall.setPosition(new Vector2D(x, y));
+        cueBall.setVelocity(new Vector2D(0, 0)); // Pastikan diam
+    }
+
+    private void tryPlaceCueBall(double x, double y) {
+        // Cek apakah posisi valid (tidak menumpuk bola lain)
+        boolean overlap = false;
+        for (GameObject obj : gameObjects) {
+            if (obj instanceof Ball && obj != cueBall) {
+                Ball other = (Ball) obj;
+                if (!other.isActive()) continue; // Abaikan bola yang sudah masuk
+
+                double dist = cueBall.getPosition().subtract(other.getPosition()).length();
+                if (dist < (cueBall.getRadius() + other.getRadius() + 2)) { // +2 buffer
+                    overlap = true;
+                    break;
+                }
+            }
+        }
+
+        if (!overlap) {
+            // Posisi Valid -> Taruh Bola, Matikan Mode Ball in Hand
+            gameRules.clearBallInHand();
+        } else {
+            // Feedback Suara atau Visual (Optional)
+            System.out.println("Cannot place here! Overlap.");
+        }
+    }
+
     private void updateOffsets() {
         double screenW = canvas.getWidth();
         double screenH = canvas.getHeight();
-
-        // Rumus Center: (LebarLayar - LebarGame) / 2
         currentOffsetX = (screenW - GAME_WIDTH) / 2;
         currentOffsetY = (screenH - GAME_HEIGHT) / 2;
     }
 
-    // Method Helper untuk offset mouse (3 Parameter - FIXED)
-    private MouseEvent offsetEvent(MouseEvent e, double shiftX, double shiftY) {
-        return new MouseEvent(
-                e.getSource(), e.getTarget(), e.getEventType(),
-                e.getX() + shiftX, e.getY() + shiftY, // <--- INI WAJIB PLUS (+)
-                e.getScreenX(), e.getScreenY(),
-                e.getButton(), e.getClickCount(),
-                e.isShiftDown(), e.isControlDown(), e.isAltDown(), e.isMetaDown(),
-                e.isPrimaryButtonDown(), e.isMiddleButtonDown(), e.isSecondaryButtonDown(),
-                e.isSynthesized(), e.isPopupTrigger(), e.isStillSincePress(), e.getPickResult()
-        );
-    }
-
     private void initializeGameObjects() {
-        // Posisi bola relatif terhadap GAME_WIDTH (Logic Coordinates)
-        cueBall = new CueBall(new Vector2D(GAME_WIDTH/4.0, GAME_HEIGHT/2.0));
+        // Posisi bola putih (Head Spot area)
+        cueBall = new CueBall(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0));
 
         List<Ball> allBalls = new ArrayList<>();
         allBalls.add(cueBall);
 
         gameObjects.add(cueBall);
-        setupRack(allBalls);
+        setupRack(allBalls); // Setup 15 bola
 
-        this.cueStick = new CueStick(cueBall, allBalls, GAME_WIDTH, GAME_HEIGHT);
+        this.cueStick = new CueStick(cueBall, allBalls, GAME_WIDTH, GAME_HEIGHT, gameRules);
         this.physicsEngine = new PhysicsEngine(table, gameObjects);
 
         gameObjects.addAll(allBalls);
         gameObjects.add(physicsEngine);
     }
 
-    // Method helper untuk menyusun 15 bola dalam formasi segitiga
+    // Method Setup Rack yang SUDAH DIPERBAIKI (No Duplicate, 8 di Tengah)
     private void setupRack(List<Ball> ballList) {
-        double radius = 13.0; // Ukuran bola
+        double radius = 13.0;
         double startX = GAME_WIDTH * 0.75;
         double startY = GAME_HEIGHT / 2.0;
 
-        // --- PERBAIKAN LOGIKA PENOMORAN ---
-        // 1. Kita buat daftar nomor bola yang tersedia (1-15, KECUALI 8)
-        // Ini memastikan setiap nomor hanya muncul satu kali.
+        // Siapkan nomor 1-15 kecuali 8
         List<Integer> availableNumbers = new ArrayList<>();
         for (int i = 1; i <= 15; i++) {
-            if (i != 8) {
-                availableNumbers.add(i);
-            }
+            if (i != 8) availableNumbers.add(i);
         }
+        // java.util.Collections.shuffle(availableNumbers); // Uncomment jika ingin acak
 
-        // Opsional: Jika ingin posisi acak (kecuali 8), aktifkan baris ini:
-        // java.util.Collections.shuffle(availableNumbers);
-
-        int indexCounter = 0; // Pointer untuk mengambil nomor dari list
+        int indexCounter = 0;
 
         for (int col = 0; col < 5; col++) {
             for (int row = 0; row <= col; row++) {
-                // Hitung Posisi X & Y
                 double x = startX + (col * (radius * Math.sqrt(3) + 2));
                 double rowHeight = col * (radius * 2 + 2);
                 double yTop = startY - (rowHeight / 2.0);
                 double y = yTop + (row * (radius * 2 + 2));
 
                 int ballNumber;
-
-                // LOGIKA FIX:
-                // Jika posisi tengah (Col 2, Row 1), PASTI Bola 8.
+                // Paksa Bola 8 di tengah (Col 2, Row 1)
                 if (col == 2 && row == 1) {
                     ballNumber = 8;
                 } else {
-                    // Jika posisi lain, ambil nomor urut dari list yang sudah kita siapkan
                     ballNumber = availableNumbers.get(indexCounter);
-                    indexCounter++; // Geser ke nomor berikutnya
+                    indexCounter++;
                 }
 
                 ObjectBall ball = new ObjectBall(new Vector2D(x, y), ballNumber);
@@ -201,6 +235,7 @@ public class BilliardApp extends Application {
         }
     }
 
+    // --- GAME LOOP UTAMA ---
     private class GameLoop extends AnimationTimer {
         private long lastNanoTime = System.nanoTime();
 
@@ -210,77 +245,175 @@ public class BilliardApp extends Application {
             lastNanoTime = currentNanoTime;
             if (deltaTime > 0.05) deltaTime = 0.05;
 
-            // --- 0. Hitung Offset Terbaru ---
-            // Kita hitung setiap frame untuk mengantisipasi resize window
             updateOffsets();
 
-            // --- 1. Update Logic ---
-            int subSteps = 4;
-            double subDeltaTime = deltaTime / subSteps;
-            for (int step = 0; step < subSteps; step++) {
-                for (GameObject obj : gameObjects) {
-                    obj.update(subDeltaTime);
+            // 1. UPDATE FISIKA
+            // Hanya update fisika jika TIDAK sedang menaruh bola (biar ga gerak2 sendiri)
+            if (!isBallInHandActive()) {
+                int subSteps = 4;
+                double subDeltaTime = deltaTime / subSteps;
+                for (int step = 0; step < subSteps; step++) {
+                    for (GameObject obj : gameObjects) {
+                        obj.update(subDeltaTime);
+                    }
                 }
             }
-            cueStick.update(deltaTime);
 
-            // --- 2. Render Logic ---
-            gc.clearRect(0, 0, gc.getCanvas().getWidth(), gc.getCanvas().getHeight());
+            cueStick.update(deltaTime); // Stik update (animasi idle dll)
 
-            // PENTING: Geser titik (0,0) GraphicsContext ke tengah layar
-            gc.save();
-            gc.translate(currentOffsetX, currentOffsetY);
+            // 2. LOGIC TURN
+            checkGameRules();
 
-            // Debug Grid (Opsional: Cek apakah (0,0) ada di pojok kiri atas area merah)
-            // gc.setStroke(Color.GRAY); gc.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            // 3. RENDER
+            renderGame();
 
-            // Gambar semua objek relatif terhadap (0,0) Area Hijau
-            table.draw(gc);
+            // Note: handleCueBallRespawn dihapus/dimodifikasi
+            // karena logic respawn sekarang ditangani oleh Ball-in-Hand rules
+        }
 
-            for (GameObject obj : gameObjects) {
-                if(obj instanceof Ball) obj.draw(gc);
+        private void checkGameRules() {
+            boolean anyBallMoving = !cueStick.areAllBallsStopped();
+
+            if (anyBallMoving) {
+                turnInProgress = true;
             }
-            cueStick.draw(gc);
+            else if (turnInProgress) {
+                processTurnEnd();
+                turnInProgress = false;
+            }
+        }
 
-            gc.restore(); // Kembalikan ke koordinat normal untuk gambar HUD
+        private void processTurnEnd() {
+            if (is8BallMode) {
+                List<ObjectBall> potted = physicsEngine.getPocketedBalls();
+                boolean foul = physicsEngine.isCueBallPocketed();
+                Ball firstHit = physicsEngine.getFirstHitBall();
 
-            // Logic Respawn
-            if (cueBall.isPendingRespawn()) {
-                boolean allStopped = true;
+                List<Ball> remaining = new ArrayList<>();
                 for (GameObject obj : gameObjects) {
-                    if (obj instanceof Ball && obj != cueBall) {
-                        Ball b = (Ball) obj;
-                        if (b.isActive() && b.getVelocity().length() > 0.1) {
-                            allStopped = false;
-                            break;
+                    if (obj instanceof Ball && ((Ball) obj).isActive()) {
+                        remaining.add((Ball) obj);
+                    }
+                }
+
+                if (!gameRules.isGameOver()) {
+                    gameRules.processTurn(potted, foul, remaining, firstHit);
+
+                    // CEK KHUSUS: Apakah sekarang Ball In Hand?
+                    if (gameRules.isBallInHand()) {
+                        // Jika Cue Ball masuk (Scratch), dia mati (active=false).
+                        // Kita harus HIDUPKAN LAGI agar bisa didrag.
+                        if (!cueBall.isActive()) {
+                            cueBall.setActive(true);
+                            cueBall.setPendingRespawn(false);
+                            // Set posisi default sementara sebelum didrag user
+                            cueBall.setPosition(new Vector2D(GAME_WIDTH/4, GAME_HEIGHT/2));
+                            cueBall.setVelocity(new Vector2D(0,0));
                         }
                     }
                 }
-                if (allStopped) {
-                    cueBall.setPosition(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0));
-                    cueBall.setVelocity(new Vector2D(0, 0));
-                    cueBall.setPendingRespawn(false);
-                    cueBall.setActive(true);
-                }
+
+                physicsEngine.resetTurnReport();
+            } else {
+                physicsEngine.resetTurnReport();
+            }
+        }
+
+        private void renderGame() {
+            gc.clearRect(0, 0, gc.getCanvas().getWidth(), gc.getCanvas().getHeight());
+            gc.save();
+            gc.translate(currentOffsetX, currentOffsetY);
+
+            table.draw(gc);
+
+            // Gambar Bola (Termasuk CueBall saat didrag)
+            for (GameObject obj : gameObjects) {
+                if (obj instanceof Ball) obj.draw(gc);
             }
 
+            // Stik HANYA digambar jika TIDAK sedang Ball In Hand
+            if (!isBallInHandActive()) {
+                cueStick.draw(gc);
+            } else {
+                // Visual Bantuan saat Dragging
+                // Lingkaran di bawah bola putih untuk indikasi "Placing Mode"
+                gc.setStroke(Color.WHITE);
+                gc.setLineWidth(2);
+                gc.setLineDashes(5);
+                gc.strokeOval(cueBall.getPosition().getX() - 20, cueBall.getPosition().getY() - 20, 40, 40);
+                gc.setLineDashes(null);
+            }
+
+            gc.restore();
             drawHUD();
         }
 
         private void drawHUD() {
             gc.setFill(Color.WHITE);
-            gc.setFont(Font.font("Consolas", 14));
-            // Tampilkan info koordinat
-            gc.fillText(String.format("Mouse Logic: (%.0f, %.0f)", mouseLogicX, mouseLogicY), 20, 30);
-            gc.fillText(String.format("Window Offset: (%.0f, %.0f)", currentOffsetX, currentOffsetY), 20, 50);
+            gc.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
+            // Debug Mouse
+            // gc.fillText(String.format("Mouse: (%.0f, %.0f)", mouseLogicX, mouseLogicY), 20, 30);
 
-            double speed = cueBall.getVelocity().length();
-            gc.fillText(String.format("Power: %.2f", speed), 20, 80);
+            // --- HUD 8-BALL MODE ---
+            if (is8BallMode) {
+                gc.setFont(Font.font("Consolas", FontWeight.BOLD, 22));
 
-            gc.setFont(Font.font("Consolas", 20));
-            gc.setFill(Color.YELLOW);
-            if (physicsEngine != null) {
-                gc.fillText("SCORE: " + physicsEngine.getPlayerScore(), 20, 110);
+                if (gameRules.isGameOver()) {
+                    // GAME OVER SCREEN
+                    gc.setFill(Color.RED);
+                    gc.fillText(gameRules.getStatusMessage(), 20, 60);
+                    gc.setFont(Font.font("Consolas", 16));
+                    gc.setFill(Color.WHITE);
+                    gc.fillText("Restart app to play again.", 20, 90);
+                } else {
+                    // 1. INFO PEMAIN
+                    String player = (gameRules.getCurrentTurn() == GameRules.PlayerTurn.PLAYER_1) ? "PLAYER 1" : "PLAYER 2";
+                    gc.setFill(Color.YELLOW);
+                    gc.fillText("TURN: " + player, 20, 50);
+
+                    // 2. INFO KATEGORI (SOLIDS vs STRIPES) - DIKEMBALIKAN
+                    String targetText = "OPEN TABLE";
+                    Color targetColor = Color.WHITE;
+
+                    GameRules.TableState state = gameRules.getTableState();
+                    if (state != GameRules.TableState.OPEN) {
+                        boolean isP1 = (gameRules.getCurrentTurn() == GameRules.PlayerTurn.PLAYER_1);
+                        // Cek Logic Kepemilikan
+                        boolean isSolid = (state == GameRules.TableState.P1_SOLID && isP1) ||
+                                (state == GameRules.TableState.P1_STRIPES && !isP1);
+
+                        targetText = isSolid ? "SOLIDS (1-7)" : "STRIPES (9-15)";
+                        targetColor = isSolid ? Color.ORANGE : Color.CYAN;
+
+                        // Cek jika sudah masuk fase 8-Ball
+                        // (Kita asumsikan info ini bisa diambil dr logic, tapi visualisasi dasar cukup category)
+                    }
+
+                    gc.setFill(targetColor);
+                    gc.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
+                    gc.fillText("GOAL: " + targetText, 20, 75);
+
+                    // 3. PESAN STATUS (Foul/Info)
+                    gc.setFill(Color.LIGHTGREEN);
+                    gc.setFont(Font.font("Consolas", 16));
+                    gc.fillText("MSG: " + gameRules.getStatusMessage(), 20, 100);
+
+                    // 4. INDIKATOR BALL IN HAND (JIKA AKTIF)
+                    if (gameRules.isBallInHand()) {
+                        gc.setFill(Color.MAGENTA);
+                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 26));
+                        gc.fillText("BALL IN HAND", 20, 140);
+                        gc.setFont(Font.font("Consolas", 16));
+                        gc.setFill(Color.WHITE);
+                        gc.fillText("(Click to place cue ball)", 20, 165);
+                    }
+                }
+            } else {
+                // ARCADE MODE
+                if (physicsEngine != null) {
+                    gc.setFill(Color.YELLOW);
+                    gc.fillText("SCORE: " + physicsEngine.getArcadeScore(), 20, 50);
+                }
             }
         }
     }

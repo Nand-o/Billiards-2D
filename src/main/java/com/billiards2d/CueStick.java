@@ -19,6 +19,7 @@ public class CueStick implements GameObject {
     private CueBall cueBall;
     private List<Ball> allBalls; // Referensi ke semua bola untuk perhitungan prediksi
     private double tableWidth, tableHeight;
+    private GameRules gameRules;
 
     // --- State Aiming (Status Bidikan) ---
     private boolean isAiming = false;       // Apakah pemain sedang menahan klik mouse?
@@ -43,11 +44,12 @@ public class CueStick implements GameObject {
      * @param tableW   Lebar meja (untuk prediksi pantulan dinding).
      * @param tableH   Tinggi meja.
      */
-    public CueStick(CueBall cueBall, List<Ball> allBalls, double tableW, double tableH) {
+    public CueStick(CueBall cueBall, List<Ball> allBalls, double tableW, double tableH, GameRules rules) {
         this.cueBall = cueBall;
         this.allBalls = allBalls;
         this.tableWidth = tableW;
         this.tableHeight = tableH;
+        this.gameRules = rules; // Simpan rules
     }
 
     @Override
@@ -109,103 +111,103 @@ public class CueStick implements GameObject {
         Ball targetBall = null;
         boolean hitWall = false;
 
-        // A. Cek Tabrakan Dinding (Wall Intersection)
-        // Menghitung jarak ke setiap sisi dinding berdasarkan arah vektor
+        // Logic Raycast (Dinding) - Tetap Sama
         double distToRight = (tableWidth - cueBall.getRadius() - start.getX()) / dir.getX();
         double distToLeft = (cueBall.getRadius() - start.getX()) / dir.getX();
         double distToBottom = (tableHeight - cueBall.getRadius() - start.getY()) / dir.getY();
         double distToTop = (cueBall.getRadius() - start.getY()) / dir.getY();
 
-        // Cari jarak positif terpendek (dinding yang akan ditabrak pertama kali)
         if (distToRight > 0) closestDist = Math.min(closestDist, distToRight);
         if (distToLeft > 0) closestDist = Math.min(closestDist, distToLeft);
         if (distToBottom > 0) closestDist = Math.min(closestDist, distToBottom);
         if (distToTop > 0) closestDist = Math.min(closestDist, distToTop);
+        hitWall = true;
 
-        hitWall = true; // Default asumsi kena dinding dulu
-
-        // B. Cek Tabrakan Bola (Ray-Circle Intersection)
+        // Logic Raycast (Bola) - Tetap Sama
         for (Ball other : allBalls) {
-            if (other == cueBall) continue;
-
-            // PENTING: Abaikan bola yang sudah masuk lubang (tidak aktif)
-            if (!other.isActive()) continue;
-
-            // Logika "Ghost Ball": Kita cari titik di mana pusat bola putih berjarak 2*Radius
+            if (other == cueBall || !other.isActive()) continue;
             Vector2D toBall = other.getPosition().subtract(start);
-            double t = toBall.dot(dir); // Proyeksi vektor bola ke garis bidikan
-
-            // Jika bola ada di belakang arah bidikan, abaikan
+            double t = toBall.dot(dir);
             if (t < 0) continue;
-
-            // Jarak tegak lurus dari garis aim ke pusat bola musuh
             Vector2D projPoint = start.add(dir.multiply(t));
             double distPerp = other.getPosition().subtract(projPoint).length();
             double collisionDist = cueBall.getRadius() + other.getRadius();
-
-            // Jika jarak tegak lurus < 2*Radius, berarti akan terjadi tabrakan
             if (distPerp < collisionDist) {
-                // Hitung mundur dari titik proyeksi ke titik sentuh sebenarnya (Pythagoras)
                 double dt = Math.sqrt(collisionDist * collisionDist - distPerp * distPerp);
                 double distToHit = t - dt;
-
-                // Jika tabrakan ini lebih dekat dari dinding atau bola sebelumnya, simpan ini
                 if (distToHit > 0 && distToHit < closestDist) {
                     closestDist = distToHit;
                     targetBall = other;
-                    hitWall = false; // Kena bola, bukan dinding
+                    hitWall = false;
                 }
             }
         }
-
-        // Update titik akhir garis prediksi
         hitPoint = start.add(dir.multiply(closestDist));
 
-        // --- GAMBAR LINE VISUAL ---
+        // --- VISUAL VALIDATOR ---
+        boolean isValidShot = true;
 
-        // 1. Garis Utama (Putih Putus-putus)
+        if (targetBall != null && targetBall instanceof ObjectBall) {
+            ObjectBall objBall = (ObjectBall) targetBall;
+            // Tanya GameRules: Apakah bola yang mau ditabrak ini valid?
+            isValidShot = gameRules.isValidTarget(objBall.getType(), allBalls);
+        }
+
         gc.save();
-        gc.setStroke(Color.WHITE);
-        gc.setLineWidth(1);
-        gc.setLineDashes(5); // Efek putus-putus
+
+        // Warna Garis: Putih (Valid) atau Merah (Invalid)
+        if (isValidShot) {
+            gc.setStroke(Color.WHITE);
+        } else {
+            gc.setStroke(Color.RED); // Warning color
+        }
+
+        gc.setLineWidth(2);
+        gc.setLineDashes(5);
         gc.strokeLine(start.getX(), start.getY(), hitPoint.getX(), hitPoint.getY());
 
-        // Gambar "Ghost Ball" (Lingkaran outline di titik tabrakan)
+        // Ghost Ball
         if (targetBall != null || hitWall) {
-            gc.setGlobalAlpha(0.3); // Transparan
+            gc.setGlobalAlpha(0.5);
+            if (isValidShot) gc.setStroke(Color.WHITE);
+            else gc.setStroke(Color.RED);
+
             gc.strokeOval(hitPoint.getX() - cueBall.getRadius(), hitPoint.getY() - cueBall.getRadius(),
                     cueBall.getRadius()*2, cueBall.getRadius()*2);
             gc.setGlobalAlpha(1.0);
         }
 
-        // 2. PERCABANGAN PREDIKSI (Jika kena bola)
-        if (targetBall != null) {
-            // Vektor Normal: Garis hubung pusat kedua bola saat tabrakan
+        // TANDA SILANG (CROSS) JIKA INVALID
+        if (!isValidShot && targetBall != null) {
+            gc.setStroke(Color.RED);
+            gc.setLineWidth(3);
+            double x = hitPoint.getX();
+            double y = hitPoint.getY();
+            double s = 10; // Ukuran silang
+            gc.setLineDashes(null);
+            gc.strokeLine(x - s, y - s, x + s, y + s);
+            gc.strokeLine(x + s, y - s, x - s, y + s);
+        }
+
+        // Prediksi Lanjutan (Hanya gambar jika shot valid, biar ga menuhin layar pas salah)
+        if (targetBall != null && isValidShot) {
+            // ... (Kode visual prediksi pantulan yang lama tetap di sini) ...
             Vector2D collisionNormal = targetBall.getPosition().subtract(hitPoint).normalize();
-
-            // Vektor Tangent: Garis singgung (tegak lurus dari normal) -> Arah pantul bola putih
             Vector2D tangent = new Vector2D(-collisionNormal.getY(), collisionNormal.getX());
+            if (dir.dot(tangent) < 0) tangent = tangent.multiply(-1);
 
-            // Pastikan arah tangent searah dengan gerakan asli (forward)
-            if (dir.dot(tangent) < 0) {
-                tangent = tangent.multiply(-1);
-            }
+            gc.setLineDashes(null);
+            double predLen = 50.0;
 
-            gc.setLineDashes(null); // Garis solid
-
-            double predictionLength = 50.0; // Panjang garis prediksi lanjutan
-
-            // Prediksi Arah Bola Musuh (Merah) - Selalu mengikuti Normal
             gc.setStroke(Color.RED);
             gc.strokeLine(targetBall.getPosition().getX(), targetBall.getPosition().getY(),
-                    targetBall.getPosition().getX() + collisionNormal.getX() * predictionLength,
-                    targetBall.getPosition().getY() + collisionNormal.getY() * predictionLength);
+                    targetBall.getPosition().getX() + collisionNormal.getX() * predLen,
+                    targetBall.getPosition().getY() + collisionNormal.getY() * predLen);
 
-            // Prediksi Arah Bola Putih (Cyan) - Selalu mengikuti Tangent (90 derajat)
             gc.setStroke(Color.CYAN);
             gc.strokeLine(hitPoint.getX(), hitPoint.getY(),
-                    hitPoint.getX() + tangent.getX() * predictionLength,
-                    hitPoint.getY() + tangent.getY() * predictionLength);
+                    hitPoint.getX() + tangent.getX() * predLen,
+                    hitPoint.getY() + tangent.getY() * predLen);
         }
         gc.restore();
     }
@@ -289,7 +291,7 @@ public class CueStick implements GameObject {
     }
 
     // Helper: Cek apakah SEMUA bola (putih + warna) sudah berhenti
-    private boolean areAllBallsStopped() {
+    public boolean areAllBallsStopped() {
         for (Ball ball : allBalls) {
             // Hanya cek bola yang masih aktif di meja
             if (ball.isActive() && ball.getVelocity().length() > 0.1) {

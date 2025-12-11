@@ -16,6 +16,9 @@ public class CueBall extends Ball {
     // Flag baru untuk menandai apakah bola putih sedang masuk ke dalam lubang
     private boolean pendingRespawn = false;
 
+    // Tambahkan properti tipe untuk konsistensi
+    private BallType type = BallType.CUE;
+
     /**
      * Konstruktor untuk membuat Bola Putih.
      * <p>
@@ -52,6 +55,10 @@ public class CueBall extends Ball {
 
     public void setPendingRespawn(boolean pendingRespawn) {
         this.pendingRespawn = pendingRespawn;
+    }
+
+    public BallType getType() {
+        return type;
     }
 
     // --- Override method draw ---
