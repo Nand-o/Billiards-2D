@@ -112,6 +112,12 @@ public class PhysicsEngine implements GameObject {
      * Jika bola menabrak dinding, arah kecepatannya akan dipantulkan.
      */
     private void checkWallCollision(Ball ball) {
+        // Jika bola berada di area mulut lubang (Cyan), JANGAN pantulkan dinding.
+        // Biarkan bola lewat seolah-olah dindingnya bolong di situ.
+        if (table.isInsidePocketEntrance(ball)) {
+            return; // Skip logic pantulan di bawah
+        }
+
         double x = ball.getPosition().getX();
         double y = ball.getPosition().getY();
         double r = ball.getRadius();

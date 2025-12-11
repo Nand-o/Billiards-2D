@@ -1,99 +1,108 @@
 package com.billiards2d;
 
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
 
 /**
  * Kelas abstrak yang merepresentasikan entitas dasar Bola Biliar.
- * Kelas ini menangani semua properti fisik (posisi, kecepatan, massa, radius)
- * dan logika pergerakan dasar seperti perpindahan posisi dan gesekan (friction).
- * Kelas ini mengimplementasikan interface {@link GameObject}.
+ * Kelas ini menangani properti fisik dan sekarang menangani VISUAL SPRITE.
  */
 public abstract class Ball implements GameObject {
 
-    /** Posisi bola dalam koordinat 2D (x, y) pada meja. */
     protected Vector2D position;
-
-    /** Vektor kecepatan bola yang menentukan arah dan laju pergerakan. */
     protected Vector2D velocity;
-
-    /** Jari-jari bola dalam satuan pixel. */
     protected double radius;
-
-    /** Massa bola, digunakan untuk perhitungan momentum saat tumbukan antar-bola. */
     protected double mass;
-
-    /** Warna visual bola saat digambar ke layar. */
     protected Color color;
-
-    /** Status bola: true jika bola masih ada di meja, false jika sudah masuk lubang. */
     protected boolean active = true;
 
-    /**
-     * Konstruktor untuk membuat objek Ball baru.
-     * @param position Posisi awal bola (Vector2D).
-     * @param color    Warna bola.
-     * @param radius   Ukuran jari-jari bola.
-     */
+    // --- ASSET MANAGEMENT ---
+    // Gambar sprite sheet dimuat sekali untuk semua instance bola (static)
+    protected static Image ballSpriteSheet;
+
+    // Ukuran bola di file gambar (Sprite asli 16x16 pixel)
+    protected static final double SPRITE_SIZE = 16.0;
+
     public Ball(Vector2D position, Color color, double radius) {
         this.position = position;
-        this.velocity = new Vector2D(0, 0); // Kecepatan awal selalu 0 (diam)
+        this.velocity = new Vector2D(0, 0);
         this.color = color;
         this.radius = radius;
-        this.mass = 1.0; // Massa default diset ke 1.0
+        this.mass = 1.0;
+
+        // Load Gambar jika belum ada
+        if (ballSpriteSheet == null) {
+            try {
+                ballSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+            } catch (Exception e) {
+                System.err.println("Gagal load sprite bola: " + e.getMessage());
+            }
+        }
     }
 
-    /**
-     * Memperbarui status fisik bola untuk setiap frame permainan.
-     * Metode ini dipanggil oleh Game Loop.
-     * @param deltaTime Waktu yang berlalu sejak frame terakhir (dalam detik).
-     * Digunakan agar gerakan bola konsisten (frame-rate independent).
-     */
     @Override
     public void update(double deltaTime) {
-        // 1. Integrasi Posisi:
-        // Posisi baru = Posisi lama + (Kecepatan * Waktu)
         position = position.add(velocity.multiply(deltaTime));
-
-        // 2. Penerapan Gesekan (Time-Based Friction):
-        // Mengurangi kecepatan secara bertahap untuk mensimulasikan gesekan karpet meja.
-        // Menggunakan Math.pow agar tingkat perlambatan tetap sama berapapun FPS komputernya.
-        // Angka 0.992 adalah koefisien gesekan (semakin dekat ke 1, semakin licin).
         double frictionFactor = Math.pow(0.992, deltaTime * 60.0);
         velocity = velocity.multiply(frictionFactor);
-
-        // 3. Batas Berhenti (Stop Threshold):
-        // Jika bola bergerak sangat lambat (kurang dari 5 pixel/detik), paksa berhenti total.
-        // Ini mencegah bola bergerak mikro (jitter) dan memungkinkan giliran bermain selesai.
-        if (velocity.length() < 5)
-            velocity = new Vector2D(0, 0); // biar ga gerak ketika sudah tidak ada gaya
+        if (velocity.length() < 5) velocity = new Vector2D(0, 0);
     }
 
     /**
-     * Menggambar bentuk visual bola ke Canvas JavaFX.
-     * @param gc Konteks grafis dari Canvas tempat menggambar.
+     * Menggambar bola menggunakan SPRITE (Gambar).
      */
     @Override
     public void draw(GraphicsContext gc) {
-        // Jika bola tidak aktif (sudah masuk lubang), jangan gambar apapun.
-        if (!active) {
+        if (!active) return;
+
+        // Jika gambar gagal diload, fallback ke lingkaran warna lama
+        if (ballSpriteSheet == null) {
+            gc.setFill(this.color);
+            gc.fillOval(position.getX() - radius, position.getY() - radius, radius * 2, radius * 2);
             return;
         }
 
-        gc.setFill(this.color);
-        // Menggambar lingkaran (Oval).
-        // JavaFX menggambar dari sudut kiri-atas, jadi kita kurangi posisi dengan radius
-        // agar titik (x,y) berada tepat di tengah bola.
-        gc.fillOval(
-                this.position.getX() - this.radius,
-                this.position.getY() - this.radius,
-                this.radius * 2, // Lebar
-                this.radius * 2 // Tinggi
-        );
+        // --- LOGIKA PEMILIHAN SPRITE (CROP) ---
+        double srcX = 0;
+        double srcY = 0;
+
+        if (this instanceof CueBall) {
+            // Bola Putih ada di Baris 2 (Y=16), Kolom ke-8 (Index 7)
+            // Koordinat X = 7 * 16 = 112
+            srcX = 112;
+            srcY = 16;
+        }
+        else if (this instanceof ObjectBall) {
+            int num = ((ObjectBall) this).getNumber();
+
+            if (num >= 1 && num <= 8) {
+                // Bola 1-8 (Solid) ada di Baris 1 (Y=0)
+                srcX = (num - 1) * SPRITE_SIZE;
+                srcY = 0;
+            } else if (num >= 9 && num <= 15) {
+                // Bola 9-15 (Stripes) ada di Baris 2 (Y=16)
+                // Bola 9 ada di kolom 0 -> (9-9)*16 = 0
+                srcX = (num - 9) * SPRITE_SIZE;
+                srcY = 16;
+            }
+        }
+
+        // --- MENGGAMBAR IMAGE ---
+        // source x,y,w,h -> koordinat potong di gambar asli
+        // dest x,y,w,h   -> koordinat gambar di layar
+
+        double destW = radius * 2; // Diameter di layar (20px)
+        double destH = radius * 2;
+        double destX = position.getX() - radius;
+        double destY = position.getY() - radius;
+
+        gc.drawImage(ballSpriteSheet,
+                srcX, srcY, SPRITE_SIZE, SPRITE_SIZE, // Source (Crop)
+                destX, destY, destW, destH);          // Destination (Screen)
     }
 
-    // --- Getter dan Setter ---
-
+    // --- Getters/Setters Standard ---
     public Vector2D getPosition() { return position; }
     public void setPosition(Vector2D position) { this.position = position; }
     public Vector2D getVelocity() { return velocity; }

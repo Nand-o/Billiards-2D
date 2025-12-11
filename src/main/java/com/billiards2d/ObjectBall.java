@@ -6,33 +6,33 @@ import javafx.scene.paint.Color;
  * Kelas yang merepresentasikan Bola Objek (Object Ball).
  * <p>
  * Ini adalah bola-bola target (berwarna/bernomor) yang harus dimasukkan ke dalam lubang.
- * Kelas ini mewarisi sifat fisik dari {@link Ball} dan menambahkan properti tipe bola.
+ * Kelas ini mewarisi sifat fisik dari {@link Ball} dan menambahkan properti nomor bola.
  * </p>
  */
 public class ObjectBall extends Ball {
 
-    /** Tipe atau identitas bola (misalnya "RED", "BLUE", "8"). */
-    private String type;
+    /** Nomor bola (1-15). Digunakan untuk menentukan sprite yang akan digambar. */
+    private int number;
 
     /**
      * Konstruktor untuk membuat Bola Objek.
      *
      * @param position Posisi awal bola (Vector2D).
-     * @param type     String yang merepresentasikan warna atau tipe bola.
-     * String ini akan dikonversi menjadi objek {@link Color}.
+     * @param number   Nomor bola (1-15).
+     * Warna akan ditentukan otomatis atau diabaikan karena kita pakai sprite.
      */
-    public ObjectBall(Vector2D position, String type) {
+    public ObjectBall(Vector2D position, int number) {
         // Memanggil konstruktor superclass (Ball)
-        // Mengonversi string tipe menjadi warna JavaFX
-        super(position, Color.valueOf(type), 10.0);
-        this.type = type;
+        // Warna kita set dummy (WHITE) saja karena visualnya nanti pakai Gambar.
+        super(position, Color.WHITE, 13.0);
+        this.number = number;
     }
 
     /**
-     * Mengembalikan tipe bola.
-     * @return String tipe bola.
+     * Mengembalikan nomor bola.
+     * @return int nomor bola.
      */
-    public String getType() {
-        return type;
+    public int getNumber() {
+        return number;
     }
 }

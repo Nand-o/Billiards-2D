@@ -62,24 +62,34 @@ public class CueStick implements GameObject {
      */
     @Override
     public void draw(GraphicsContext gc) {
-        // Jangan gambar stik jika bola sedang bergerak
         if (!areAllBallsStopped()) return;
 
         // 1. Tentukan Sudut Bidikan
         double angleRad;
+
         if (!isAiming) {
-            // Mode Bebas: Stik mengikuti posisi mouse
+            // MODE MEMBIDIK (HOVER)
+            // Hitung jarak mouse dari bola
             double dx = mousePos.getX() - cueBall.getPosition().getX();
             double dy = mousePos.getY() - cueBall.getPosition().getY();
+
+            // --- CORE LOGIC FIX ---
+            // Math.atan2(dy, dx) = Sudut MURNI dari Bola ke Mouse.
+            // Kita tambah Math.PI (180 derajat) agar stik berada di SEBERANG Mouse.
+            // Hasil: Mouse di Kanan (Target) -> Stik muncul di Kiri (Siap pukul).
             angleRad = Math.atan2(dy, dx) + Math.PI;
+
             lockedAngleRad = angleRad; // Simpan sudut terakhir
         } else {
-            // Mode Terkunci: Stik tetap pada sudut saat klik dimulai
+            // MODE MENARIK (DRAG)
+            // Sudut dikunci, tidak berubah meskipun mouse gerak kiri-kanan
             angleRad = lockedAngleRad;
         }
 
         // 2. Gambar Garis Prediksi (Raycast)
-        // Arah tembakan adalah kebalikan dari posisi stik (+ 180 derajat / PI radian)
+        // Arah tembakan adalah KEBALIKAN dari posisi stik.
+        // Posisi Stik = angleRad.
+        // Arah Tembak = angleRad + PI (180 derajat lagi) = Kembali ke arah Mouse.
         double shootAngle = angleRad + Math.PI;
         Vector2D shootDir = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
 
@@ -233,49 +243,45 @@ public class CueStick implements GameObject {
         gc.restore();
     }
 
-    // --- EVENT HANDLERS (Input Mouse) ---
+    // --- UPDATE HANDLERS: Terima koordinat langsung ---
 
-    public void handleMouseMoved(MouseEvent e) {
-        if (!isAiming) this.mousePos = new Vector2D(e.getX(), e.getY());
+    public void handleMouseMoved(double x, double y) {
+        if (!isAiming) this.mousePos = new Vector2D(x, y);
     }
 
-    public void handleMousePressed(MouseEvent e) {
-        // Hanya bisa mulai membidik jika bola berhenti
+    public void handleMousePressed(double x, double y) {
         if (!areAllBallsStopped()) return;
-
         isAiming = true;
-        aimStart = new Vector2D(e.getX(), e.getY());
-        aimCurrent = new Vector2D(e.getX(), e.getY());
+        aimStart = new Vector2D(x, y);
+        aimCurrent = new Vector2D(x, y);
     }
 
-    public void handleMouseDragged(MouseEvent e) {
+    public void handleMouseDragged(double x, double y) {
         if (!isAiming) return;
-        aimCurrent = new Vector2D(e.getX(), e.getY());
+        aimCurrent = new Vector2D(x, y);
     }
 
-    public void handleMouseReleased(MouseEvent e) {
+    public void handleMouseReleased(double x, double y) {
         if (!isAiming) return;
 
-        // 1. Hitung jarak tarik (pixel)
+        // Logika release tetap sama... (Code tidak berubah)
+        // ... (copy paste logika release yang lama) ...
+        // ...
+
+        // Pastikan aimCurrent diupdate terakhir
+        aimCurrent = new Vector2D(x, y);
+
+        // ... (Lanjutkan logika hitung force & hit bola) ...
+
         double dragDist = aimStart.subtract(aimCurrent).length();
-
-        // 2. Batasi jarak tarik visual agar tidak melebihi batas
         if (dragDist > MAX_DRAG_DISTANCE) dragDist = MAX_DRAG_DISTANCE;
-
-        // 3. Hitung Rasio (0.0 sampai 1.0)
         double dragRatio = dragDist / MAX_DRAG_DISTANCE;
-
-        // 4. Terapkan Kurva Kuadratik (Agar tarikan awal halus)
         double powerCurve = dragRatio * dragRatio;
-
-        // 5. Konversi ke Force (Kekuatan Akhir)
         double finalForce = powerCurve * MAX_FORCE;
 
-        // 6. Hitung Vektor Arah Tembakan
         double shootAngle = lockedAngleRad + Math.PI;
         Vector2D direction = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
 
-        // 7. Eksekusi Pukulan (dengan deadzone kecil)
         if (finalForce > 5) {
             cueBall.hit(direction.multiply(finalForce));
         }

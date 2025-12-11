@@ -27,7 +27,7 @@ public class CueBall extends Ball {
     public CueBall(Vector2D position) {
         // Memanggil konstruktor superclass (Ball)
         // Warna di-hardcode ke Color.WHITE dan radius ke 10.0
-        super(position, Color.WHITE, 10.0);
+        super(position, Color.WHITE, 13.0);
     }
 
     /**

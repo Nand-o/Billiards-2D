@@ -59,31 +59,42 @@ public class BilliardApp extends Application {
         canvas.heightProperty().bind(scene.heightProperty());
 
         // 3. Input Handling (Mouse)
-        // Kita hitung offset secara real-time saat event terjadi
-
         canvas.setOnMouseMoved(e -> {
-            updateOffsets(); // Pastikan offset terbaru
-            mouseLogicX = e.getX() - currentOffsetX;
-            mouseLogicY = e.getY() - currentOffsetY;
-            // Kirim event dengan koordinat yang sudah dikoreksi ke Logic Game
-            cueStick.handleMouseMoved(offsetEvent(e, -currentOffsetX, -currentOffsetY));
+            updateOffsets();
+            // Hitung logika manual (DIJAMIN BENAR)
+            double logicX = e.getX() - currentOffsetX;
+            double logicY = e.getY() - currentOffsetY;
+
+            mouseLogicX = logicX; // Untuk HUD
+            mouseLogicY = logicY;
+
+            // Kirim angka mentah ke CueStick
+            cueStick.handleMouseMoved(logicX, logicY);
         });
 
         canvas.setOnMousePressed(e -> {
             updateOffsets();
-            cueStick.handleMousePressed(offsetEvent(e, -currentOffsetX, -currentOffsetY));
+            double logicX = e.getX() - currentOffsetX;
+            double logicY = e.getY() - currentOffsetY;
+            cueStick.handleMousePressed(logicX, logicY);
         });
 
         canvas.setOnMouseDragged(e -> {
             updateOffsets();
-            mouseLogicX = e.getX() - currentOffsetX;
-            mouseLogicY = e.getY() - currentOffsetY;
-            cueStick.handleMouseDragged(offsetEvent(e, -currentOffsetX, -currentOffsetY));
+            double logicX = e.getX() - currentOffsetX;
+            double logicY = e.getY() - currentOffsetY;
+
+            mouseLogicX = logicX; // Update HUD juga pas drag
+            mouseLogicY = logicY;
+
+            cueStick.handleMouseDragged(logicX, logicY);
         });
 
         canvas.setOnMouseReleased(e -> {
             updateOffsets();
-            cueStick.handleMouseReleased(offsetEvent(e, -currentOffsetX, -currentOffsetY));
+            double logicX = e.getX() - currentOffsetX;
+            double logicY = e.getY() - currentOffsetY;
+            cueStick.handleMouseReleased(logicX, logicY);
         });
 
         // 4. Finalisasi Stage
@@ -116,7 +127,7 @@ public class BilliardApp extends Application {
     private MouseEvent offsetEvent(MouseEvent e, double shiftX, double shiftY) {
         return new MouseEvent(
                 e.getSource(), e.getTarget(), e.getEventType(),
-                e.getX() + shiftX, e.getY() + shiftY,
+                e.getX() + shiftX, e.getY() + shiftY, // <--- INI WAJIB PLUS (+)
                 e.getScreenX(), e.getScreenY(),
                 e.getButton(), e.getClickCount(),
                 e.isShiftDown(), e.isControlDown(), e.isAltDown(), e.isMetaDown(),
@@ -142,31 +153,50 @@ public class BilliardApp extends Application {
         gameObjects.add(physicsEngine);
     }
 
+    // Method helper untuk menyusun 15 bola dalam formasi segitiga
     private void setupRack(List<Ball> ballList) {
-        double radius = 10.0;
+        double radius = 13.0; // Ukuran bola
         double startX = GAME_WIDTH * 0.75;
         double startY = GAME_HEIGHT / 2.0;
 
-        String[] colors = {
-                "YELLOW", "BLUE", "RED", "PURPLE", "ORANGE", "GREEN", "MAROON", "BLACK",
-                "YELLOW", "BLUE", "RED", "PURPLE", "ORANGE", "GREEN", "MAROON"
-        };
+        // --- PERBAIKAN LOGIKA PENOMORAN ---
+        // 1. Kita buat daftar nomor bola yang tersedia (1-15, KECUALI 8)
+        // Ini memastikan setiap nomor hanya muncul satu kali.
+        List<Integer> availableNumbers = new ArrayList<>();
+        for (int i = 1; i <= 15; i++) {
+            if (i != 8) {
+                availableNumbers.add(i);
+            }
+        }
 
-        int ballCount = 0;
+        // Opsional: Jika ingin posisi acak (kecuali 8), aktifkan baris ini:
+        // java.util.Collections.shuffle(availableNumbers);
+
+        int indexCounter = 0; // Pointer untuk mengambil nomor dari list
+
         for (int col = 0; col < 5; col++) {
             for (int row = 0; row <= col; row++) {
-                double x = startX + (col * (radius * Math.sqrt(3)));
-                double rowHeight = col * (radius * 2);
+                // Hitung Posisi X & Y
+                double x = startX + (col * (radius * Math.sqrt(3) + 2));
+                double rowHeight = col * (radius * 2 + 2);
                 double yTop = startY - (rowHeight / 2.0);
-                double y = yTop + (row * (radius * 2));
+                double y = yTop + (row * (radius * 2 + 2));
 
-                String colorName = colors[ballCount % colors.length];
-                if (col == 2 && row == 1) colorName = "BLACK";
+                int ballNumber;
 
-                ObjectBall ball = new ObjectBall(new Vector2D(x, y), colorName);
+                // LOGIKA FIX:
+                // Jika posisi tengah (Col 2, Row 1), PASTI Bola 8.
+                if (col == 2 && row == 1) {
+                    ballNumber = 8;
+                } else {
+                    // Jika posisi lain, ambil nomor urut dari list yang sudah kita siapkan
+                    ballNumber = availableNumbers.get(indexCounter);
+                    indexCounter++; // Geser ke nomor berikutnya
+                }
+
+                ObjectBall ball = new ObjectBall(new Vector2D(x, y), ballNumber);
                 ballList.add(ball);
                 gameObjects.add(ball);
-                ballCount++;
             }
         }
     }
