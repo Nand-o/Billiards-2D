@@ -197,7 +197,7 @@ public class CueStick implements GameObject {
             if (dir.dot(tangent) < 0) tangent = tangent.multiply(-1);
 
             gc.setLineDashes(null);
-            double predLen = 50.0;
+            double predLen = 500.0;
 
             gc.setStroke(Color.RED);
             gc.strokeLine(targetBall.getPosition().getX(), targetBall.getPosition().getY(),
@@ -299,5 +299,26 @@ public class CueStick implements GameObject {
             }
         }
         return true; // Semua diam
+    }
+
+    public boolean isAiming() {
+        return isAiming;
+    }
+
+    /**
+     * Mengembalikan rasio kekuatan tarikan saat ini (0.0 sampai 1.0).
+     * Digunakan untuk menggambar panjang Power Bar di UI.
+     */
+    public double getPowerRatio() {
+        if (!isAiming) return 0.0;
+
+        // Hitung jarak tarik
+        double dragDist = aimStart.subtract(aimCurrent).length();
+
+        // Clamp (Batasi) maksimum
+        if (dragDist > MAX_DRAG_DISTANCE) dragDist = MAX_DRAG_DISTANCE;
+
+        // Return rasio (0.0 - 1.0)
+        return dragDist / MAX_DRAG_DISTANCE;
     }
 }

@@ -10,7 +10,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
-
+import javafx.scene.image.Image;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,11 +47,35 @@ public class BilliardApp extends Application {
     // Debug Info Mouse
     private double mouseLogicX, mouseLogicY;
 
+    // ASSETS UI - UPDATE KOORDINAT PRESISI
+    private static Image uiSpriteSheet;
+
+    // 1. KUBUS (Chalk Box)
+    // Geser X +1 dan Kurangi Lebar -2 agar tidak bocor piksel tetangga
+    private static final double CUBE_SRC_X = 145;
+    private static final double CUBE_SRC_Y = 0;
+    private static final double CUBE_W = 22;  // Lebar dikecilkan dikit (Safety crop)
+    private static final double CUBE_H = 22;
+
+    // 2. PIL (Indikator Vertikal - Merah)
+    // Ambil dari Y=0 agar utuh
+    private static final double PILL_SRC_X = 169; // Geser +1 biar aman
+    private static final double PILL_SRC_Y = 0;   // Mulai dari paling atas
+    private static final double PILL_W = 6;       // Ambil tengahnya saja
+    private static final double PILL_H = 16;      // Tinggi standar
+
     @Override
     public void start(Stage primaryStage) {
         // 1. Init Logic Systems
         table = new Table(GAME_WIDTH, GAME_HEIGHT);
         gameRules = new GameRules(); // Inisialisasi Wasit
+
+        // LOAD UI SPRITE
+        try {
+            uiSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+        } catch (Exception e) {
+            System.err.println("Gagal load UI: " + e.getMessage());
+        }
 
         // 2. Setup Canvas
         canvas = new Canvas(1280, 720);
@@ -359,46 +383,68 @@ public class BilliardApp extends Application {
                 gc.setFont(Font.font("Consolas", FontWeight.BOLD, 22));
 
                 if (gameRules.isGameOver()) {
-                    // GAME OVER SCREEN
-                    gc.setFill(Color.RED);
-                    gc.fillText(gameRules.getStatusMessage(), 20, 60);
+                    // --- TAMPILAN AKHIR PERMAINAN ---
+
+                    if (gameRules.isCleanWin()) {
+                        // MENANG BERSIH (HIJAU)
+                        gc.setFill(Color.LIMEGREEN);
+                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
+                        gc.fillText("🏆 WINNER! 🏆", 20, 50);
+
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 22));
+                        // Tampilkan pesan "VICTORY! PLAYER X WINS!"
+                        gc.fillText(gameRules.getStatusMessage(), 20, 90);
+
+                    } else {
+                        // GAME OVER KARENA FOUL (MERAH)
+                        gc.setFill(Color.RED);
+                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
+                        gc.fillText("☠ GAME OVER ☠", 20, 50);
+
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
+                        // Tampilkan pesan "GAME OVER! PLAYER X LOST (Early 8-Ball)"
+                        gc.fillText(gameRules.getStatusMessage(), 20, 90);
+                    }
+
+                    // Pesan Restart
                     gc.setFont(Font.font("Consolas", 16));
-                    gc.setFill(Color.WHITE);
-                    gc.fillText("Restart app to play again.", 20, 90);
+                    gc.setFill(Color.YELLOW);
+                    gc.fillText("Press RESTART button to play again.", 20, 120);
+
                 } else {
-                    // 1. INFO PEMAIN
+                    // ... (Tampilan In-Game / Turn Player Tetap Sama) ...
+                    // Copy paste bagian 'else' dari kode sebelumnya di sini
                     String player = (gameRules.getCurrentTurn() == GameRules.PlayerTurn.PLAYER_1) ? "PLAYER 1" : "PLAYER 2";
                     gc.setFill(Color.YELLOW);
                     gc.fillText("TURN: " + player, 20, 50);
 
-                    // 2. INFO KATEGORI (SOLIDS vs STRIPES) - DIKEMBALIKAN
                     String targetText = "OPEN TABLE";
                     Color targetColor = Color.WHITE;
 
                     GameRules.TableState state = gameRules.getTableState();
                     if (state != GameRules.TableState.OPEN) {
                         boolean isP1 = (gameRules.getCurrentTurn() == GameRules.PlayerTurn.PLAYER_1);
-                        // Cek Logic Kepemilikan
                         boolean isSolid = (state == GameRules.TableState.P1_SOLID && isP1) ||
                                 (state == GameRules.TableState.P1_STRIPES && !isP1);
 
                         targetText = isSolid ? "SOLIDS (1-7)" : "STRIPES (9-15)";
                         targetColor = isSolid ? Color.ORANGE : Color.CYAN;
 
-                        // Cek jika sudah masuk fase 8-Ball
-                        // (Kita asumsikan info ini bisa diambil dr logic, tapi visualisasi dasar cukup category)
+                        // TAMBAHAN VISUAL: Jika sudah masuk fase 8-Ball
+                        // Kita bisa cek manual atau tambah method di GameRules,
+                        // tapi sementara pakai warna target saja sudah cukup jelas.
                     }
 
                     gc.setFill(targetColor);
                     gc.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
                     gc.fillText("GOAL: " + targetText, 20, 75);
 
-                    // 3. PESAN STATUS (Foul/Info)
                     gc.setFill(Color.LIGHTGREEN);
                     gc.setFont(Font.font("Consolas", 16));
                     gc.fillText("MSG: " + gameRules.getStatusMessage(), 20, 100);
 
-                    // 4. INDIKATOR BALL IN HAND (JIKA AKTIF)
                     if (gameRules.isBallInHand()) {
                         gc.setFill(Color.MAGENTA);
                         gc.setFont(Font.font("Consolas", FontWeight.BOLD, 26));
@@ -415,6 +461,69 @@ public class BilliardApp extends Application {
                     gc.fillText("SCORE: " + physicsEngine.getArcadeScore(), 20, 50);
                 }
             }
+            // Gambar Power Bar
+            drawPowerBar(gc);
+        }
+    }
+
+    private void drawPowerBar(GraphicsContext gc) {
+        double ratio = cueStick.getPowerRatio();
+
+        // Posisi Awal UI
+        double startX = 30;
+        double startY = canvas.getHeight() - 30; // Naikkan sedikit biar ga mepet bawah
+
+        if (uiSpriteSheet != null) {
+            // A. GAMBAR KUBUS (CHALK BOX)
+            // Scale 1.5x
+            double destCubeW = CUBE_W * 1.5;
+            double destCubeH = CUBE_H * 1.5;
+
+            gc.drawImage(uiSpriteSheet,
+                    CUBE_SRC_X, CUBE_SRC_Y, CUBE_W, CUBE_H,
+                    startX, startY - (destCubeH / 2), destCubeW, destCubeH);
+
+            // B. GAMBAR PIL (DEKORASI)
+            double pillX = startX + destCubeW + 8; // Jarak 8px dari kubus
+            double destPillW = PILL_W * 1.5;
+            double destPillH = PILL_H * 1.5;
+
+            // Gambar Pil agar center secara vertikal dengan kubus
+            gc.drawImage(uiSpriteSheet,
+                    PILL_SRC_X, PILL_SRC_Y, PILL_W, PILL_H,
+                    pillX, startY - (destPillH / 2), destPillW, destPillH);
+
+            // C. GAMBAR POWER BAR (PROCEDURAL)
+            double barX = pillX + destPillW + 8;
+            double barHeight = 12; // Sedikit lebih tipis biar elegan
+            double maxBarWidth = 200;
+            // Center bar secara vertikal terhadap ikon
+            double barY = startY - (barHeight / 2);
+
+            // 1. Background (Hitam)
+            gc.setFill(Color.rgb(20, 20, 20, 0.8));
+            gc.fillRect(barX, barY, maxBarWidth, barHeight);
+
+            // 2. Border (Putih)
+            gc.setStroke(Color.WHITE);
+            gc.setLineWidth(2);
+            gc.strokeRect(barX, barY, maxBarWidth, barHeight);
+
+            // 3. Isi Bar (Gradient Color)
+            Color barColor;
+            if (ratio < 0.5) barColor = Color.LIME;
+            else if (ratio < 0.8) barColor = Color.YELLOW;
+            else barColor = Color.RED;
+
+            gc.setFill(barColor);
+            // Margin 2px di dalam border
+            gc.fillRect(barX + 2, barY + 2, (maxBarWidth - 4) * ratio, barHeight - 4);
+
+            // 4. Teks Persentase
+            gc.setFill(Color.WHITE);
+            gc.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
+            // Taruh teks sedikit di atas bar
+            gc.fillText((int)(ratio * 100) + "%", barX + maxBarWidth + 10, barY + barHeight);
         }
     }
 

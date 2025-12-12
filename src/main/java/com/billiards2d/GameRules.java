@@ -37,6 +37,7 @@ public class GameRules {
     private String statusMessage;
     private boolean isFoul;
     private boolean isBallInHand = false;
+    private boolean cleanWin = false;
 
     public GameRules() {
         resetGame();
@@ -147,29 +148,41 @@ public class GameRules {
         }
     }
 
-    // Helper Baru untuk validasi First Hit (biar kodenya rapi)
+    // Helper Baru untuk validasi First Hit (SUDAH DIPERBAIKI)
     private boolean isValidFirstHit(Ball firstHitBall, List<Ball> remainingBalls) {
         if (firstHitBall == null) return false;
-        if (!(firstHitBall instanceof ObjectBall)) return false; // Kena cue ball? ga mungkin sih
+        if (!(firstHitBall instanceof ObjectBall)) return false;
 
         BallType hitType = ((ObjectBall) firstHitBall).getType();
 
-        // Kalau meja OPEN, tidak boleh kena 8-Ball duluan. Sisanya bebas.
+        // A. MEJA OPEN
         if (tableState == TableState.OPEN) {
+            // Boleh kena apa saja KECUALI 8-Ball
             return hitType != BallType.EIGHT_BALL;
         }
 
-        // Kalau meja ASSIGNED
+        // B. MEJA ASSIGNED (Solid vs Stripes)
         BallType myCategory = getMyCategory();
-        boolean isMyGroupCleared = hasClearedGroup(currentTurn, remainingBalls);
 
-        if (isMyGroupCleared) {
-            // Harus kena 8-Ball
-            return hitType == BallType.EIGHT_BALL;
-        } else {
-            // Harus kena kategori sendiri
-            return hitType == myCategory;
+        // --- LOGIC FIX START ---
+
+        // 1. ATURAN EMAS: Jika memukul bola kategori sendiri -> SELALU SAH.
+        // Ini menangani kasus "Bola Terakhir". Meskipun setelah bola ini masuk listnya jadi kosong,
+        // faktanya saat dipukul, itu adalah bola kita. Jadi Valid.
+        if (hitType == myCategory) {
+            return true;
         }
+
+        // 2. ATURAN BOLA 8: Jika memukul bola 8...
+        if (hitType == BallType.EIGHT_BALL) {
+            // ...Hanya sah jika bola kategori kita MEMANG SUDAH HABIS (Cleared) di meja.
+            return hasClearedGroup(currentTurn, remainingBalls);
+        }
+
+        // --- LOGIC FIX END ---
+
+        // 3. Sisanya (Kena bola lawan) -> Foul
+        return false;
     }
 
     private void handleFoul(String msg) {
@@ -201,17 +214,33 @@ public class GameRules {
         }
     }
 
+    // Method handleWin (Menang Sah)
     private void handleWin() {
+        cleanWin = true; // Tandai menang bersih
+
         if (currentTurn == PlayerTurn.PLAYER_1) gameStatus = GameStatus.P1_WINS;
         else gameStatus = GameStatus.P2_WINS;
-        statusMessage = "GAME OVER! " + currentTurn + " WINS!";
+
+        statusMessage = "VICTORY! " + currentTurn + " WINS!";
     }
 
+    // Method handleLoss (Kalah karena Blunder)
     private void handleLoss() {
-        // Jika Current Player kalah, berarti Lawan Menang
+        cleanWin = false; // Tandai menang kotor (karena lawan foul)
+
+        // Simpan nama yang kalah untuk pesan error
+        PlayerTurn loser = currentTurn;
+
+        // Set Pemenang (Lawan dari yang main sekarang)
         if (currentTurn == PlayerTurn.PLAYER_1) gameStatus = GameStatus.P2_WINS;
         else gameStatus = GameStatus.P1_WINS;
-        statusMessage = "GAME OVER! " + currentTurn + " LOST!";
+
+        statusMessage = "GAME OVER! " + loser + " LOST (Early 8-Ball)";
+    }
+
+    // Getter Baru
+    public boolean isCleanWin() {
+        return cleanWin;
     }
 
     private void assignCategory(BallType type) {
