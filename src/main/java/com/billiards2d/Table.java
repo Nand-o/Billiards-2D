@@ -34,10 +34,10 @@ public class Table implements GameObject {
     private boolean debugMode = true;
 
     // 1. VISUAL MEJA
-    private double railSizeX = 86.0;
-    private double railSizeY = 163.0;
+    private double railSizeX = 94.0;
+    private double railSizeY = 179.0;
     private double imageOffsetX = 0;
-    private double imageOffsetY = 48;
+    private double imageOffsetY = 52;
 
     // --- 2. CONFIG CORNER POCKETS (4 POJOK) ---
     // Cyan (Entrance): Area dimana bola menembus dinding

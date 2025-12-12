@@ -15,12 +15,34 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Iterator;
 import java.util.prefs.Preferences;
+import javafx.geometry.Pos;
+import javafx.geometry.Insets;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.control.Button;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.text.Text;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.Stop;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.paint.LinearGradient;
 
 public class BilliardApp extends Application {
 
-    // --- KONFIGURASI ---
-    private static final double GAME_WIDTH = 880;
-    private static final double GAME_HEIGHT = 440;
+    // 1. UKURAN LAYAR APLIKASI (HD 720p)
+    // Ini ukuran jendelanya (Canvas & Scene)
+    private static final double WINDOW_WIDTH = 1280;
+    private static final double WINDOW_HEIGHT = 720;
+
+    // 2. UKURAN MEJA BILIAR (Play Area - Ratio 2:1)
+    // Ini ukuran area hijaunya. Kita buat lebih kecil dari layar agar muat di tengah.
+    // Contoh: 960x480 (Tetap 2:1 dan pas di tengah layar 720p)
+    private static final double GAME_WIDTH = 960;
+    private static final double GAME_HEIGHT = 480;
 
     // SWITCH MODE:
     // true  = Menggunakan Aturan 8-Ball (Giliran, Solid/Stripes, Win/Loss)
@@ -28,7 +50,7 @@ public class BilliardApp extends Application {
     private boolean is8BallMode = true;
 
     // --- CORE SYSTEMS ---
-    private GraphicsContext gc;
+    private GraphicsContext mainGC;
     private Canvas canvas;
     private final List<GameObject> gameObjects = new ArrayList<>();
     private final List<Integer> pocketHistory = new ArrayList<>();
@@ -50,6 +72,12 @@ public class BilliardApp extends Application {
 
     // Debug Info Mouse
     private double mouseLogicX, mouseLogicY;
+
+    // --- NEW UI OVERLAYS ---
+    private javafx.scene.layout.VBox pauseOverlay;
+    private javafx.scene.layout.VBox gameOverOverlay;
+    private javafx.scene.text.Text gameOverTitle; // Untuk update teks "WINNER/LOSER"
+    private javafx.scene.text.Text gameOverMessage; // Untuk pesan detail
 
     // ASSETS UI - UPDATE KOORDINAT PRESISI
     private static Image uiSpriteSheet;
@@ -94,140 +122,46 @@ public class BilliardApp extends Application {
     private int highScore = 0;
     private Preferences prefs; // Untuk simpan data ke registry komputer
 
+    // --- SCENE MANAGEMENT ---
+    private Stage primaryStage;
+    private GameLoop gameLoop;
+
     @Override
     public void start(Stage primaryStage) {
-        // 1. Init Logic Systems
-        table = new Table(GAME_WIDTH, GAME_HEIGHT);
-        gameRules = new GameRules(); // Inisialisasi Wasit
-        prefs = Preferences.userNodeForPackage(BilliardApp.class);
-        highScore = prefs.getInt("arcade_highscore", 0); // Load saved score (default 0)
+        this.primaryStage = primaryStage; // Simpan referensi
 
-        // LOAD UI SPRITE
         try {
-            uiSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
-            // Kita load juga ball sprite sheet untuk keperluan UI Tracker
-            ballSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+            // 1. Inisialisasi Objek Preferences
+            prefs = Preferences.userNodeForPackage(BilliardApp.class);
+
+            // 2. LOAD SCORE LAMA (Ini yang bikin Best Score kamu 0 terus sebelumnya)
+            // Ambil data "arcade_highscore", kalau tidak ada, isi dengan 0
+            highScore = prefs.getInt("arcade_highscore", 0);
+            System.out.println("High Score Loaded: " + highScore); // Debug check
+
         } catch (Exception e) {
-            System.err.println("Gagal load UI: " + e.getMessage());
+            System.err.println("Gagal load preferences: " + e.getMessage());
         }
 
-        // 2. Setup Canvas
-        canvas = new Canvas(1280, 720);
-        gc = canvas.getGraphicsContext2D();
+        // Load Assets (Lakukan sekali di awal)
+        try {
+            if (uiSpriteSheet == null) uiSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+            if (ballSpriteSheet == null) ballSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+        } catch (Exception e) {
+            System.err.println("Gagal load asset: " + e.getMessage());
+        }
 
-        Pane root = new Pane(canvas);
-        root.setStyle("-fx-background-color: #1a1a1a;");
-
-        Scene scene = new Scene(root);
-        canvas.widthProperty().bind(scene.widthProperty());
-        canvas.heightProperty().bind(scene.heightProperty());
-
-        // --- DEBUG / CHEAT KEYS ---
-        scene.setOnKeyPressed(event -> {
-            switch (event.getCode()) {
-                case C: // Tekan 'C' untuk Clear Table (Instant Win)
-                    if (!is8BallMode && !isArcadeGameOver) {
-                        debugClearTable();
-                    }
-                    break;
-                case R: // Tekan 'R' untuk Restart Cepat (Opsional)
-                    if (isArcadeGameOver) {
-                        restartGame();
-                    }
-                    break;
-            }
-        });
-
-        // --- INPUT HANDLING PINTAR (Ball in Hand vs Shooting) ---
-
-        canvas.setOnMouseMoved(e -> {
-            if (isGamePaused || isArcadeGameOver) return;
-            updateOffsets();
-            double logicX = e.getX() - currentOffsetX;
-            double logicY = e.getY() - currentOffsetY;
-            mouseLogicX = logicX; mouseLogicY = logicY;
-
-            if (isBallInHandActive()) {
-                // MODE DRAG: Bola putih mengikuti mouse
-                moveCueBallToMouse(logicX, logicY);
-            } else {
-                // MODE NORMAL: Gerakkan Stik
-                cueStick.handleMouseMoved(logicX, logicY);
-            }
-        });
-
-        canvas.setOnMousePressed(e -> {
-            updateOffsets();
-            double logicX = e.getX() - currentOffsetX;
-            double logicY = e.getY() - currentOffsetY;
-
-            // --- DETEKSI KLIK TOMBOL PAUSE (Screen Coordinates) ---
-            // Kita pakai e.getX() (Screen Space) karena tombol pause tidak ikut geser meja
-            if (e.getX() >= PAUSE_BTN_X && e.getX() <= PAUSE_BTN_X + PAUSE_BTN_SIZE &&
-                    e.getY() >= PAUSE_BTN_Y && e.getY() <= PAUSE_BTN_Y + PAUSE_BTN_SIZE) {
-
-                isGamePaused = !isGamePaused; // Toggle Pause
-                return; // Stop processing click ke game
-            }
-
-            if (isArcadeGameOver) {
-                restartGame(); // Method baru untuk reset
-                return;
-            }
-
-            // --- JIKA GAME PAUSED, ABAIKAN INPUT LAIN ---
-            if (isGamePaused) return;
-
-            // Logic Game Normal
-            if (isBallInHandActive()) {
-                tryPlaceCueBall(logicX, logicY);
-            } else {
-                cueStick.handleMousePressed(logicX, logicY);
-            }
-        });
-
-        canvas.setOnMouseDragged(e -> {
-            if (isGamePaused || isArcadeGameOver) return;
-            updateOffsets();
-            double logicX = e.getX() - currentOffsetX;
-            double logicY = e.getY() - currentOffsetY;
-            mouseLogicX = logicX; mouseLogicY = logicY;
-
-            if (isBallInHandActive()) {
-                moveCueBallToMouse(logicX, logicY);
-            } else {
-                cueStick.handleMouseDragged(logicX, logicY);
-            }
-        });
-
-        canvas.setOnMouseReleased(e -> {
-            if (isGamePaused || isArcadeGameOver) return;
-            updateOffsets();
-            double logicX = e.getX() - currentOffsetX;
-            double logicY = e.getY() - currentOffsetY;
-
-            if (!isBallInHandActive()) {
-                cueStick.handleMouseReleased(logicX, logicY);
-            }
-        });
-
-        // 4. Finalisasi Stage
-        primaryStage.setTitle("Billiard Project - " + (is8BallMode ? "8-Ball Mode" : "Arcade Mode"));
-        primaryStage.setScene(scene);
-        primaryStage.setWidth(1280);
-        primaryStage.setHeight(720);
-        primaryStage.show();
-
-        // 5. Init Objects & Loop
-        initializeGameObjects();
-        GameLoop gameLoop = new GameLoop();
-        gameLoop.start();
+        // Langsung masuk ke Menu Utama
+        showMainMenu();
     }
 
     /**
      * Mereset permainan ke kondisi awal (Skor 0, Waktu Penuh, Rack Baru).
      */
     private void restartGame() {
+        if (gameOverOverlay != null) gameOverOverlay.setVisible(false);
+        if (pauseOverlay != null) pauseOverlay.setVisible(false);
+
         // 1. Reset State Arcade
         arcadeTimer = ARCADE_START_TIME;
         isArcadeGameOver = false;
@@ -246,6 +180,364 @@ public class BilliardApp extends Application {
         gameRules.resetGame();
 
         System.out.println("Game Restarted!");
+    }
+
+    /**
+     * LANGKAH 5.2: Desain Visual Main Menu (Retro Arcade Style)
+     * Mereplika tampilan referensi dengan background hijau dan tipografi pixel.
+     */
+    private void showMainMenu() {
+        if (gameLoop != null) {
+            gameLoop.stop();
+        }
+
+        // 1. ROOT CONTAINER (StackPane)
+        StackPane root = new StackPane();
+
+        // --- LAYER 1: BACKGROUND IMAGE ---
+        try {
+            // Memuat gambar dari folder resources/assets/BackgroundMenu.jpg
+            Image bgImage = new Image(getClass().getResourceAsStream("/assets/BackgroundMenu.jpg"));
+            ImageView bgView = new ImageView(bgImage);
+
+            // Scaling logic agar gambar memenuhi layar tanpa merusak rasio (Cover mode)
+            bgView.fitWidthProperty().bind(primaryStage.widthProperty());
+            bgView.fitHeightProperty().bind(primaryStage.heightProperty());
+
+            // Opsional: Jika gambar aslinya tidak hijau, kita bisa beri filter warna hijau lewat kode
+            // Tapi karena Anda bilang sudah menyiapkan gambar hijau, kita pakai mode normal saja.
+
+            root.getChildren().add(bgView);
+        } catch (Exception e) {
+            // Fallback jika gambar tidak ditemukan: Pakai warna Hijau Gelap
+            Canvas bgFallback = new Canvas(WINDOW_WIDTH, WINDOW_HEIGHT);
+            GraphicsContext gc = bgFallback.getGraphicsContext2D();
+            gc.setFill(Color.rgb(0, 40, 0)); // Hijau gelap banget
+            gc.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+            drawGridPattern(gc); // Gambar garis-garis grid hijau manual
+            root.getChildren().add(bgFallback);
+            System.err.println("Background image not found, using fallback. Error: " + e.getMessage());
+        }
+
+        // --- LAYER 2: UI LAYOUT (BorderPane) ---
+        BorderPane mainLayout = new BorderPane();
+        mainLayout.setPadding(new Insets(20, 40, 20, 40)); // Padding pinggir layar
+
+        // A. TOP: HUD (1UP, HI-SCORE, 2UP) - Font: VCR OSD Mono
+        HBox topHud = new HBox();
+        topHud.setAlignment(Pos.CENTER);
+
+        // Load High Score dari Prefs
+        String highScoreStr = String.format("%06d", prefs.getInt("arcade_highscore", 0));
+
+        // Kita buat 3 bagian: Kiri (1UP), Tengah (HI-SCORE), Kanan (2UP/CREDIT)
+        VBox p1Box = createHudBox("1UP", "000000"); // Skor P1 (Dummy 0 dulu)
+        VBox hiScoreBox = createHudBox("HI-SCORE", highScoreStr);
+        VBox p2Box = createHudBox("2UP", "000000"); // Skor P2 (Dummy)
+
+        // Spacer agar Hi-Score pas di tengah
+        Region spacer1 = new Region(); HBox.setHgrow(spacer1, Priority.ALWAYS);
+        Region spacer2 = new Region(); HBox.setHgrow(spacer2, Priority.ALWAYS);
+
+        topHud.getChildren().addAll(p1Box, spacer1, hiScoreBox, spacer2, p2Box);
+        mainLayout.setTop(topHud);
+
+        // B. CENTER: JUDUL & TOMBOL
+        VBox centerBox = new VBox(15); // Jarak antar elemen vertikal
+        centerBox.setAlignment(Pos.CENTER);
+
+        // 1. MAIN TITLE "BILLIARD 2D" - Font: ArcadeClassic
+        Text title = new Text("BILLIARD 2D");
+        // Gunakan method helper untuk load font, fallback ke Impact jika file font tidak ada
+        title.setFont(loadCustomFont("ArcadeClassic.ttf", 90, "Impact"));
+
+        // Styling Gradient (Merah -> Oranye -> Kuning) seperti referensi
+        LinearGradient titleGradient = new LinearGradient(
+                0, 0, 0, 1, true, CycleMethod.NO_CYCLE,
+                new Stop(0.0, Color.web("#ff4e00")),  // Atas: Merah Oranye
+                new Stop(0.5, Color.web("#ffcc00")),  // Tengah: Emas
+                new Stop(1.0, Color.web("#ffff00"))   // Bawah: Kuning
+        );
+        title.setFill(titleGradient);
+        title.setStroke(Color.BLACK); // Outline Hitam
+        title.setStrokeWidth(3);
+
+        // Efek Bayangan Teks (Drop Shadow Solid)
+        DropShadow titleShadow = new DropShadow();
+        titleShadow.setColor(Color.BLACK);
+        titleShadow.setOffsetX(5);
+        titleShadow.setOffsetY(5);
+        titleShadow.setRadius(0); // Radius 0 bikin bayangan tajam (pixel style)
+        title.setEffect(titleShadow);
+
+        // 2. SUBTITLE
+        Text subTitle = new Text("ULTIMATE ARCADE EXPERIENCE");
+        subTitle.setFont(loadCustomFont("PixelOperator-Bold.ttf", 20, "Consolas"));
+        subTitle.setFill(Color.web("#dca466")); // Warna kulit/krem retro
+        subTitle.setEffect(new DropShadow(2, Color.BLACK));
+
+        // Spacer antara judul dan tombol
+        Region titleSpacer = new Region();
+        titleSpacer.setPrefHeight(40);
+
+        // 3. BUTTONS (Tombol Emas/Oranye) - Font: Pixel Operator
+        Button btn8Ball = createRetroButton("PLAY 8-BALL (2 Player)", () -> startGame(true));
+        Button btnArcade = createRetroButton("ARCADE RUSH (1 Player)", () -> startGame(false));
+        Button btnExit = createRetroButton("EXIT GAME", () -> primaryStage.close());
+
+        centerBox.getChildren().addAll(title, subTitle, titleSpacer, btn8Ball, btnArcade, btnExit);
+        mainLayout.setCenter(centerBox);
+
+        // C. BOTTOM: CREDIT & COPYRIGHT
+        VBox bottomBox = new VBox(5);
+        bottomBox.setAlignment(Pos.CENTER);
+
+        Text creditText = new Text("CREDIT 012");
+        creditText.setFont(loadCustomFont("VCR_OSD_MONO_1.001.ttf", 24, "Courier New"));
+        creditText.setFill(Color.WHITE);
+        creditText.setEffect(new DropShadow(2, Color.BLACK));
+
+        Text copyText = new Text("© 2025 BILLIARD2D PROJECT. CREATED WITH JAVAFX.");
+        copyText.setFont(loadCustomFont("PixelOperator.ttf", 14, "Consolas"));
+        copyText.setFill(Color.WHITE);
+
+        bottomBox.getChildren().addAll(creditText, copyText);
+        mainLayout.setBottom(bottomBox);
+
+        // Masukkan Layout UI ke Root
+        root.getChildren().add(mainLayout);
+
+        // --- LAYER 3: CRT SCANLINE EFFECT (Opsional - Estetika) ---
+        // Membuat garis-garis hitam tipis transparan di seluruh layar
+        Canvas crtCanvas = new Canvas(WINDOW_WIDTH, WINDOW_HEIGHT);
+        GraphicsContext crtGC = crtCanvas.getGraphicsContext2D();
+        crtGC.setFill(Color.rgb(0, 0, 0, 0.15)); // Hitam transparan (15%)
+        for (int y = 0; y < WINDOW_HEIGHT; y += 4) { // Gambar garis setiap 4 pixel
+            crtGC.fillRect(0, y, WINDOW_WIDTH, 2);
+        }
+        // Matikan interaksi mouse ke layer efek ini supaya tombol di bawahnya bisa diklik
+        crtCanvas.setMouseTransparent(true);
+        root.getChildren().add(crtCanvas);
+
+        // SET SCENE
+        Scene menuScene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
+        primaryStage.setTitle("Billiard 2D - Main Menu");
+        primaryStage.setScene(menuScene);
+        primaryStage.show();
+    }
+
+    // --- HELPER METHODS UNTUK MENU RETRO ---
+
+    /**
+     * Membuat kotak HUD (Skor) di bagian atas.
+     */
+    private VBox createHudBox(String label, String value) {
+        VBox box = new VBox(2);
+        box.setAlignment(Pos.CENTER);
+
+        Text lbl = new Text(label);
+        lbl.setFont(loadCustomFont("ArcadeClassic.ttf", 18, "Impact"));
+        lbl.setFill(Color.CYAN); // Warna label HUD biasanya Cyan atau Merah
+        lbl.setStroke(Color.BLACK);
+        lbl.setStrokeWidth(1);
+
+        Text val = new Text(value);
+        val.setFont(loadCustomFont("VCR_OSD_MONO_1.001.ttf", 20, "Courier New"));
+        val.setFill(Color.WHITE);
+        val.setEffect(new DropShadow(2, Color.BLACK));
+
+        box.getChildren().addAll(lbl, val);
+        return box;
+    }
+
+    /**
+     * Membuat tombol gaya Retro Arcade (Kapsul Emas).
+     */
+    private Button createRetroButton(String text, Runnable action) {
+        Button btn = new Button(text);
+        // Load font untuk tombol
+        btn.setFont(loadCustomFont("PixelOperator-Bold.ttf", 22, "Consolas"));
+
+        btn.setPrefWidth(400);
+        btn.setPrefHeight(55);
+
+        // CSS Styling Retro: Gradient Emas, Border Tebal, Text Hitam
+        String normalStyle =
+                "-fx-background-color: linear-gradient(to bottom, #ffcc00, #ff9900); " + // Emas ke Oranye
+                        "-fx-text-fill: #3e2723; " + // Coklat Tua/Hitam
+                        "-fx-background-radius: 15; " + // Sudut sedikit membulat (bukan bulat penuh)
+                        "-fx-border-color: #3e2723; " + // Border warna Coklat Tua
+                        "-fx-border-width: 3; " +
+                        "-fx-border-radius: 15; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 0, 0, 4, 4);"; // Bayangan tajam ke kanan bawah
+
+        String hoverStyle =
+                "-fx-background-color: linear-gradient(to bottom, #ffeb3b, #ffc107); " + // Lebih terang saat hover
+                        "-fx-text-fill: black; " +
+                        "-fx-background-radius: 15; " +
+                        "-fx-border-color: black; " +
+                        "-fx-border-width: 3; " +
+                        "-fx-border-radius: 15; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 0, 0, 4, 4);";
+
+        btn.setStyle(normalStyle);
+        btn.setOnMouseEntered(e -> btn.setStyle(hoverStyle));
+        btn.setOnMouseExited(e -> btn.setStyle(normalStyle));
+        btn.setOnAction(e -> action.run());
+
+        return btn;
+    }
+
+    /**
+     * Helper untuk memuat Custom Font. Jika gagal, pakai font sistem.
+     * @param fontFileName Nama file font di folder /assets/fonts/ (Idealnya) atau root.
+     * @param size Ukuran font.
+     * @param fallbackFontName Nama font sistem cadangan (cth: "Arial", "Impact").
+     */
+    private Font loadCustomFont(String fontFileName, double size, String fallbackFontName) {
+        try {
+            // Asumsi file font ada di folder /assets/
+            // Pastikan Anda menaruh file .ttf di folder resources/assets/
+            String path = "/assets/" + fontFileName;
+            Font font = Font.loadFont(getClass().getResourceAsStream(path), size);
+
+            if (font != null) {
+                return font;
+            }
+        } catch (Exception e) {
+            // Silent fail, lanjut ke fallback
+        }
+
+        // Jika gagal load, kembalikan font sistem + Bold
+        return Font.font(fallbackFontName, FontWeight.BOLD, size);
+    }
+
+    /**
+     * Fallback menggambar Grid jika gambar background gagal dimuat.
+     */
+    private void drawGridPattern(GraphicsContext gc) {
+        gc.setStroke(Color.rgb(0, 100, 0)); // Hijau lebih terang
+        gc.setLineWidth(2);
+
+        // Gambar Grid
+        int step = 60;
+        for (int x = 0; x < WINDOW_WIDTH; x += step) gc.strokeLine(x, 0, x, WINDOW_HEIGHT);
+        for (int y = 0; y < WINDOW_HEIGHT; y += step) gc.strokeLine(0, y, WINDOW_WIDTH, y);
+    }
+
+    /**
+     * Memulai permainan (Scene Game) berdasarkan mode yang dipilih.
+     */
+    private void startGame(boolean mode8Ball) {
+        // 1. Set Mode Sesuai Pilihan Menu
+        this.is8BallMode = mode8Ball;
+
+        // 2. Reset Variable State (Penting agar game fresh)
+        isGamePaused = false;
+        isArcadeGameOver = false;
+        turnInProgress = false;
+        arcadeTimer = ARCADE_START_TIME;
+        currentTurnTime = 30.0; // Reset shot timer
+        pocketHistory.clear();
+        floatingTexts.clear();
+        // 3. SETUP ROOT & CANVAS
+        // Gunakan StackPane agar bisa menumpuk UI di atas Canvas
+        StackPane root = new StackPane();
+
+        canvas = new Canvas(WINDOW_WIDTH, WINDOW_HEIGHT);
+        mainGC = canvas.getGraphicsContext2D();
+
+        // Layer 1: Canvas Game
+        root.getChildren().add(canvas);
+
+        // 4. SETUP OVERLAYS (UI MENU)
+        createPauseOverlay();     // Helper method baru
+        createGameOverOverlay();  // Helper method baru
+
+        // Layer 2 & 3: Menu (Default Hidden)
+        root.getChildren().addAll(pauseOverlay, gameOverOverlay);
+
+        // 5. INPUT HANDLING
+        // Mouse Handling (Logic Game)
+        canvas.setOnMouseMoved(e -> {
+            if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
+            updateOffsets();
+            double logicX = e.getX() - currentOffsetX;
+            double logicY = e.getY() - currentOffsetY;
+
+            if (isBallInHandActive()) moveCueBallToMouse(logicX, logicY);
+            else cueStick.handleMouseMoved(logicX, logicY);
+        });
+
+        canvas.setOnMousePressed(e -> {
+            updateOffsets();
+            // Cek Tombol Pause di Pojok Kiri Atas
+            if (e.getX() >= PAUSE_BTN_X && e.getX() <= PAUSE_BTN_X + PAUSE_BTN_SIZE &&
+                    e.getY() >= PAUSE_BTN_Y && e.getY() <= PAUSE_BTN_Y + PAUSE_BTN_SIZE) {
+
+                togglePause(); // Method baru
+                return;
+            }
+
+            if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
+
+            double logicX = e.getX() - currentOffsetX;
+            double logicY = e.getY() - currentOffsetY;
+
+            if (isBallInHandActive()) tryPlaceCueBall(logicX, logicY);
+            else cueStick.handleMousePressed(logicX, logicY);
+        });
+
+        canvas.setOnMouseDragged(e -> {
+            if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
+            updateOffsets();
+            double logicX = e.getX() - currentOffsetX;
+            double logicY = e.getY() - currentOffsetY;
+
+            if (isBallInHandActive()) moveCueBallToMouse(logicX, logicY);
+            else cueStick.handleMouseDragged(logicX, logicY);
+        });
+
+        canvas.setOnMouseReleased(e -> {
+            if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
+            updateOffsets();
+            if (!isBallInHandActive()) cueStick.handleMouseReleased(e.getX() - currentOffsetX, e.getY() - currentOffsetY);
+        });
+
+        // 6. Init Objects
+        gameRules = new GameRules();
+        initializeGameObjects();
+
+        // 7. Setup Scene & Keyboard
+        Scene gameScene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
+        gameScene.setFill(Color.BLACK); // Background hitam di belakang canvas
+
+        gameScene.setOnKeyPressed(event -> {
+            switch (event.getCode()) {
+                case ESCAPE: togglePause(); break; // ESC sekarang toggle pause menu
+                case C: if (!is8BallMode) debugClearTable(); break;
+            }
+        });
+
+        // Binding Resizing
+        canvas.widthProperty().bind(gameScene.widthProperty());
+        canvas.heightProperty().bind(gameScene.heightProperty());
+
+        primaryStage.setTitle(is8BallMode ? "Billiard 2D - 8 Ball Pool" : "Billiard 2D - Arcade Time Attack");
+        primaryStage.setScene(gameScene);
+
+        gameLoop = new GameLoop();
+        gameLoop.start();
+    }
+
+    // Helper kecil untuk styling tombol sementara
+    private void styleButton(javafx.scene.control.Button btn) {
+        btn.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
+        btn.setPrefWidth(300);
+        btn.setPrefHeight(50);
+        btn.setStyle("-fx-background-color: #ffd700; -fx-text-fill: black; -fx-cursor: hand;");
     }
 
     /**
@@ -331,6 +623,10 @@ public class BilliardApp extends Application {
     }
 
     private void initializeGameObjects() {
+        gameObjects.clear();
+
+        this.table = new Table(GAME_WIDTH, GAME_HEIGHT);
+
         // Posisi bola putih (Head Spot area)
         cueBall = new CueBall(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0));
 
@@ -344,7 +640,12 @@ public class BilliardApp extends Application {
         this.cueStick.setArcadeMode(!is8BallMode);
         this.physicsEngine = new PhysicsEngine(table, gameObjects);
 
-        gameObjects.addAll(allBalls);
+        for (Ball b : allBalls) {
+            if (b != cueBall) { // CueBall jangan dimasukkan 2 kali
+                gameObjects.add(b);
+            }
+        }
+
         gameObjects.add(physicsEngine);
     }
 
@@ -425,8 +726,7 @@ public class BilliardApp extends Application {
             renderGame();
 
             // GAMBAR UI TAMBAHAN
-            drawPauseMenu(gc);   // Overlay hanya jika isGamePaused=true
-            drawPauseButton(gc); // Tombol selalu terlihat
+            drawPauseButton(mainGC); // Tombol selalu terlihat
 
             // --- JIKA PAUSE, STOP LOGIC DI BAWAH INI ---
             if (isGamePaused) {
@@ -484,12 +784,26 @@ public class BilliardApp extends Application {
                 }
             }
 
-            if (!is8BallMode && !isArcadeGameOver) {
+            if (!is8BallMode) {
                 int currentScore = physicsEngine.getArcadeScore();
                 if (currentScore > highScore) {
                     highScore = currentScore;
-                    // Auto Save setiap kali rekor pecah
-                    prefs.putInt("arcade_highscore", highScore);
+
+                    // --- PERBAIKAN 2: Safety Check & Save ---
+                    try {
+                        // Jaga-jaga: Jika prefs tiba-tiba null (penyebab error kamu), kita isi lagi
+                        if (prefs == null) {
+                            prefs = Preferences.userNodeForPackage(BilliardApp.class);
+                        }
+
+                        // Simpan ke Registry
+                        if (prefs != null) {
+                            prefs.putInt("arcade_highscore", highScore);
+                            prefs.flush(); // Paksa simpan sekarang juga
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Gagal save score: " + e.getMessage());
+                    }
                 }
             }
 
@@ -505,7 +819,48 @@ public class BilliardApp extends Application {
             }
 
             // 2. LOGIC TURN
+            checkGameOverState();
             checkGameRules();
+        }
+
+        private void checkGameOverState() {
+            boolean isFinished = false;
+            String titleText = "";
+            Color titleColor = Color.WHITE;
+            String msgText = "";
+
+            if (is8BallMode && gameRules.isGameOver()) {
+                isFinished = true;
+                if (gameRules.isCleanWin()) {
+                    titleText = "YOU WIN!";
+                    titleColor = Color.LIME;
+                } else {
+                    titleText = "GAME OVER";
+                    titleColor = Color.RED;
+                }
+                msgText = gameRules.getStatusMessage();
+            }
+            else if (!is8BallMode && isArcadeGameOver) {
+                isFinished = true;
+                titleText = "TIME'S UP!";
+                titleColor = Color.ORANGE;
+                msgText = "FINAL SCORE: " + physicsEngine.getArcadeScore();
+            }
+
+            // Trigger Overlay jika belum muncul
+            if (isFinished && !gameOverOverlay.isVisible()) {
+                gameOverTitle.setText(titleText);
+                gameOverTitle.setFill(titleColor);
+                gameOverMessage.setText(msgText);
+
+                gameOverOverlay.setVisible(true);
+                // Kita tidak stop loop agar background game masih ter-render di belakang overlay
+            }
+
+            // Jika restart (overlay msh aktif tapi game sudah reset), sembunyikan
+            if (!isFinished && gameOverOverlay.isVisible()) {
+                gameOverOverlay.setVisible(false);
+            }
         }
 
         private void checkGameRules() {
@@ -631,42 +986,48 @@ public class BilliardApp extends Application {
         }
 
         private void renderGame() {
-            // 1. BERSIHKAN LAYAR
-            gc.clearRect(0, 0, gc.getCanvas().getWidth(), gc.getCanvas().getHeight());
+            double scrW = canvas.getWidth();
+            double scrH = canvas.getHeight();
 
+            // --- PERBAIKAN 2: JANGAN PAKAI clearRect! ---
+            // clearRect membuat transparan -> tembus ke Scene putih.
+            // Gunakan fillRect untuk mengecat background "Bioskop" (Margin Hitam/Abu)
+
+            mainGC.setFill(Color.rgb(20, 20, 20)); // Warna Abu Gelap (Background Aplikasi)
+            mainGC.fillRect(0, 0, scrW, scrH);
             // 2. LAYER PALING BAWAH: Background Sidebar (Pipa & Keranjang)
             // Kita gambar ini DULUAN, supaya nanti tertimpa oleh Meja.
             // Ini kuncinya agar pipa terlihat "muncul dari bawah meja".
-            drawSideBarBackground(gc);
+            drawSideBarBackground(mainGC);
 
             // 3. LAYER TENGAH: Game World (Meja, Bola, Stik)
-            gc.save();
-            gc.translate(currentOffsetX, currentOffsetY);
+            mainGC.save();
+            mainGC.translate(currentOffsetX, currentOffsetY);
 
-            table.draw(gc); // Meja digambar di sini, menutupi pangkal pipa
+            table.draw(mainGC); // Meja digambar di sini, menutupi pangkal pipa
 
             // Gambar Bola (Termasuk CueBall saat didrag)
             for (GameObject obj : gameObjects) {
-                if (obj instanceof Ball) obj.draw(gc);
+                if (obj instanceof Ball) obj.draw(mainGC);
             }
 
             // Stik HANYA digambar jika TIDAK sedang Ball In Hand
             if (!isBallInHandActive()) {
-                cueStick.draw(gc);
+                cueStick.draw(mainGC);
             } else {
                 // Visual Bantuan saat Dragging
-                gc.setStroke(Color.WHITE);
-                gc.setLineWidth(2);
-                gc.setLineDashes(5);
-                gc.strokeOval(cueBall.getPosition().getX() - 20, cueBall.getPosition().getY() - 20, 40, 40);
-                gc.setLineDashes(null);
+                mainGC.setStroke(Color.WHITE);
+                mainGC.setLineWidth(2);
+                mainGC.setLineDashes(5);
+                mainGC.strokeOval(cueBall.getPosition().getX() - 20, cueBall.getPosition().getY() - 20, 40, 40);
+                mainGC.setLineDashes(null);
             }
 
-            gc.restore();
+            mainGC.restore();
 
             // 4. LAYER ATAS: Isi Keranjang & HUD
             // Bola history digambar belakangan supaya muncul DI ATAS keranjang background
-            drawSideBarBalls(gc);
+            drawSideBarBalls(mainGC);
 
             Iterator<FloatingText> it = floatingTexts.iterator();
             while (it.hasNext()) {
@@ -675,7 +1036,7 @@ public class BilliardApp extends Application {
                 // Solusi: Kita update di GameLoop handle(), render di sini.
                 // TAPI biar gampang, kita update statis 0.016 (60fps) di sini aja visual doang.
                 boolean dead = ft.update(0.016);
-                ft.draw(gc);
+                ft.draw(mainGC);
                 if (dead) it.remove();
             }
 
@@ -683,101 +1044,78 @@ public class BilliardApp extends Application {
         }
 
         private void drawHUD() {
-            gc.setFill(Color.WHITE);
-            gc.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
-            // Debug Mouse
-            // gc.fillText(String.format("Mouse: (%.0f, %.0f)", mouseLogicX, mouseLogicY), 20, 30);
+            // Jika Overlay Game Over sedang muncul, kita bisa stop gambar HUD
+            // (atau biarkan tetap jalan jika ingin terlihat di background).
+            // Untuk kerapian, biarkan HUD standar (Skor/Timer) tetap terlihat di belakang overlay.
+
+            mainGC.setFill(Color.WHITE);
+            mainGC.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
 
             // --- HUD 8-BALL MODE ---
             if (is8BallMode) {
-                // TAMPILAN BARU 8-BALL
-                if (gameRules.isGameOver()) {
-                    // Layar Game Over (Biarkan kode Game Over yang sudah Anda buat sebelumnya di sini)
-                    // ... (Kode Winner/Loser Screen Anda yang bagus tadi) ...
+                // BAGIAN YANG DIHAPUS: Blok if (gameRules.isGameOver()) ...
+                // Kita ganti dengan logika ini:
 
-                    // Copy paste logic Game Over warna hijau/merah Anda di sini
-                    if (gameRules.isCleanWin()) {
-                        gc.setFill(Color.LIMEGREEN);
-                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 40));
-                        gc.fillText("🏆 WINNER! 🏆", 400, 300); // Center Screen roughly
-                        gc.fillText(gameRules.getStatusMessage(), 350, 350);
-                    } else {
-                        gc.setFill(Color.RED);
-                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 40));
-                        gc.fillText("☠ GAME OVER ☠", 380, 300);
-                        gc.fillText(gameRules.getStatusMessage(), 300, 350);
-                    }
+                // Selama game belum selesai, gambar tracker
+                // Atau biarkan tracker tetap terlihat meski game over (opsional)
+                drawBallTracker(mainGC);
 
-                } else {
-                    // IN-GAME HUD (BALL TRACKER)
-                    drawBallTracker(gc);
-
-                    // BALL IN HAND ALERT (Tampilkan Besar di Tengah Layar)
-                    if (gameRules.isBallInHand()) {
-                        gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
-                        gc.fillText("BALL IN HAND", (canvas.getWidth()/2) - 100, 150);
-                    }
+                // Alert Ball in Hand (Ini Status In-Game, jadi TETAP DISIMPAN)
+                if (gameRules.isBallInHand() && !gameRules.isGameOver()) {
+                    mainGC.setFill(Color.WHITE);
+                    mainGC.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
+                    mainGC.fillText("BALL IN HAND", (canvas.getWidth()/2) - 100, 150);
                 }
-            } else {
+            }
+            else {
                 // --- HUD ARCADE (TIME ATTACK) ---
 
-                gc.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
+                // BAGIAN YANG DIHAPUS: Blok if (isArcadeGameOver) ... "TIME'S UP" ...
 
-                if (isArcadeGameOver) {
-                    // TAMPILAN WAKTU HABIS
-                    gc.setFill(Color.RED);
-                    gc.fillText("TIME'S UP!", (canvas.getWidth()/2) - 80, 200);
+                // KITA HANYA PERTAHANKAN BAGIAN SKOR & TIMER (Bekas blok 'else')
+                // Tujuannya agar saat Overlay muncul, skor terakhir tetap terlihat di background
 
-                    gc.setFont(Font.font("Consolas", 20));
-                    gc.setFill(Color.WHITE);
-                    gc.fillText("Final Score: " + physicsEngine.getArcadeScore(), (canvas.getWidth()/2) - 80, 240);
+                mainGC.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
 
-                    // INSTRUKSI RESTART (Berkedip/Blinking Effect)
-                    if ((System.currentTimeMillis() / 500) % 2 == 0) { // Kedip setiap 0.5 detik
-                        gc.setFill(Color.YELLOW);
-                        gc.fillText("Click to Restart", (canvas.getWidth()/2) - 80, 280);
-                    }
-                } else {
-                    // TAMPILAN TIMER BERJALAN
-                    // Format Detik ke Menit:Detik (Contoh: 125s -> 02:05)
-                    int minutes = (int) arcadeTimer / 60;
-                    int seconds = (int) arcadeTimer % 60;
-                    String timeStr = String.format("%02d:%02d", minutes, seconds);
+                // 1. TAMPILAN TIMER
+                // Cegah timer negatif visual saat game over
+                double displayTime = Math.max(0, arcadeTimer);
 
-                    gc.setTextAlign(javafx.scene.text.TextAlignment.LEFT);
+                int minutes = (int) displayTime / 60;
+                int seconds = (int) displayTime % 60;
+                String timeStr = String.format("%02d:%02d", minutes, seconds);
 
-                    // Warna Timer: Putih (Normal), Merah (Bahaya < 10 detik)
-                    if (arcadeTimer <= 10.0) gc.setFill(Color.RED);
-                    else gc.setFill(Color.WHITE);
+                mainGC.setTextAlign(javafx.scene.text.TextAlignment.LEFT);
 
-                    // Tampilkan di Tengah Atas
-                    gc.fillText(timeStr, (canvas.getWidth()/2) - 40, 35);
+                // Warna Timer
+                if (displayTime <= 10.0 && displayTime > 0) mainGC.setFill(Color.RED);
+                else mainGC.setFill(Color.WHITE);
 
-                    // Tampilkan Skor di bawah Timer
-                    gc.setFill(Color.YELLOW);
-                    gc.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
-                    gc.fillText("SCORE: " + physicsEngine.getArcadeScore(), (canvas.getWidth()/2) - 43, 60);
+                mainGC.fillText(timeStr, (canvas.getWidth()/2) - 40, 35);
 
-                    // 3. HIGH SCORE (Pojok Kanan Atas - BARU!)
-                    gc.setFill(Color.GOLD);
-                    gc.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
-                    String bestText = "BEST: " + highScore;
-                    // Hitung posisi biar rata kanan (estimasi width)
-                    double bestX = canvas.getWidth() - 150;
-                    gc.fillText(bestText, bestX, 50);
+                // 2. TAMPILAN SKOR
+                mainGC.setFill(Color.YELLOW);
+                mainGC.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
+                mainGC.fillText("SCORE: " + physicsEngine.getArcadeScore(), (canvas.getWidth()/2) - 43, 60);
 
-                    // Efek Visual "NEW RECORD" (Jika score saat ini == high score dan > 0)
-                    if (physicsEngine.getArcadeScore() > 0 && physicsEngine.getArcadeScore() >= highScore) {
-                        if ((System.currentTimeMillis() / 200) % 2 == 0) { // Kedip cepat
-                            gc.setFill(Color.LIME);
-                            gc.fillText("NEW RECORD!", bestX, 75);
-                        }
+                // 3. HIGH SCORE
+                mainGC.setFill(Color.GOLD);
+                mainGC.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
+                String bestText = "BEST: " + highScore;
+                double bestX = canvas.getWidth() - 150;
+                mainGC.fillText(bestText, bestX, 50);
+
+                // Efek New Record
+                if (physicsEngine.getArcadeScore() > 0 && physicsEngine.getArcadeScore() >= highScore) {
+                    if ((System.currentTimeMillis() / 200) % 2 == 0) {
+                        mainGC.setFill(Color.LIME);
+                        mainGC.fillText("NEW RECORD!", bestX, 75);
                     }
                 }
             }
-            // Gambar Power Bar
-            drawPowerBar(gc);
+
+            // Gambar Power Bar (Selalu Muncul)
+            drawPowerBar(mainGC);
         }
     }
 
@@ -1106,8 +1444,8 @@ public class BilliardApp extends Application {
         double screenH = canvas.getHeight();
 
         // --- KOORDINAT ---
-        double sidebarX = screenW - 100;
-        double bottomY = screenH - 110;
+        double sidebarX = screenW - 70;
+        double bottomY = screenH - 120;
         double ballSize = 26;
         double spacing = 28;
         double maxBalls = 15;
@@ -1162,8 +1500,8 @@ public class BilliardApp extends Application {
 
         double screenW = canvas.getWidth();
         double screenH = canvas.getHeight();
-        double sidebarX = screenW - 100;
-        double bottomY = screenH - 110;
+        double sidebarX = screenW - 70;
+        double bottomY = screenH - 120;
         double ballSize = 26;
         double spacing = 28;
         double railWidth = ballSize + 10;
@@ -1287,6 +1625,67 @@ public class BilliardApp extends Application {
         cueBall.setVelocity(new Vector2D(0, 0));
         cueBall.setActive(true);
         cueBall.setPendingRespawn(false);
+    }
+
+    // --- OVERLAY BUILDERS ---
+
+    private void createPauseOverlay() {
+        pauseOverlay = new VBox(20); // Spacing 20px
+        pauseOverlay.setAlignment(Pos.CENTER);
+        // Background Gelap Transparan
+        pauseOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7);");
+        pauseOverlay.setVisible(false); // Default Hidden
+
+        // Judul
+        Text title = new Text("PAUSED");
+        title.setFont(Font.font("Impact", 60));
+        title.setFill(Color.WHITE);
+        title.setStroke(Color.BLACK);
+        title.setStrokeWidth(2);
+
+        // Tombol-tombol
+        Button btnResume = createRetroButton("RESUME GAME", () -> togglePause());
+        Button btnMenu = createRetroButton("MAIN MENU", () -> showMainMenu());
+        Button btnExit = createRetroButton("EXIT DESKTOP", () -> primaryStage.close());
+
+        // Kecilkan sedikit tombol pause menu dibanding main menu
+        btnResume.setPrefWidth(300);
+        btnMenu.setPrefWidth(300);
+        btnExit.setPrefWidth(300);
+
+        pauseOverlay.getChildren().addAll(title, btnResume, btnMenu, btnExit);
+    }
+
+    private void createGameOverOverlay() {
+        gameOverOverlay = new VBox(20);
+        gameOverOverlay.setAlignment(Pos.CENTER);
+        gameOverOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85);");
+        gameOverOverlay.setVisible(false);
+
+        // Kita simpan referensi text agar bisa diubah isinya (WIN/LOSE) nanti
+        gameOverTitle = new Text("GAME OVER");
+        gameOverTitle.setFont(Font.font("Impact", 80));
+        gameOverTitle.setFill(Color.RED);
+        gameOverTitle.setStroke(Color.WHITE);
+        gameOverTitle.setStrokeWidth(3);
+
+        gameOverMessage = new Text("");
+        gameOverMessage.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
+        gameOverMessage.setFill(Color.YELLOW);
+
+        Button btnRestart = createRetroButton("PLAY AGAIN", () -> restartGame());
+        Button btnMenu = createRetroButton("MAIN MENU", () -> showMainMenu());
+
+        gameOverOverlay.getChildren().addAll(gameOverTitle, gameOverMessage, btnRestart, btnMenu);
+    }
+
+    // Helper toggle pause sederhana
+    private void togglePause() {
+        // Jangan pause jika sedang game over
+        if (isArcadeGameOver || (is8BallMode && gameRules.isGameOver())) return;
+
+        isGamePaused = !isGamePaused;
+        pauseOverlay.setVisible(isGamePaused);
     }
 
     public static void main(String[] args) {
