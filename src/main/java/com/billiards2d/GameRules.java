@@ -339,6 +339,10 @@ public class GameRules {
         return BallType.UNKNOWN;
     }
 
+    public void triggerTimeFoul() {
+        handleFoul("FOUL! Time Limit.");
+    }
+
     // --- GETTERS ---
     public PlayerTurn getCurrentTurn() { return currentTurn; }
     public String getStatusMessage() { return statusMessage; }

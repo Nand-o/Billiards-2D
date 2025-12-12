@@ -29,6 +29,7 @@ public class BilliardApp extends Application {
     private GraphicsContext gc;
     private Canvas canvas;
     private final List<GameObject> gameObjects = new ArrayList<>();
+    private final List<Integer> pocketHistory = new ArrayList<>();
 
     private Table table;
     private CueStick cueStick;
@@ -49,6 +50,7 @@ public class BilliardApp extends Application {
 
     // ASSETS UI - UPDATE KOORDINAT PRESISI
     private static Image uiSpriteSheet;
+    private static Image ballSpriteSheet;   // Untuk Ball Tracker
 
     // 1. KUBUS (Chalk Box)
     // Geser X +1 dan Kurangi Lebar -2 agar tidak bocor piksel tetangga
@@ -62,7 +64,19 @@ public class BilliardApp extends Application {
     private static final double PILL_SRC_X = 169; // Geser +1 biar aman
     private static final double PILL_SRC_Y = 0;   // Mulai dari paling atas
     private static final double PILL_W = 6;       // Ambil tengahnya saja
-    private static final double PILL_H = 16;      // Tinggi standar
+    private static final double PILL_H = 16;     // Tinggi standar
+
+    // --- SHOT TIMER VARIABLES ---
+    private static final double TURN_TIME_LIMIT = 30.0; // 30 Detik
+    private double currentTurnTime = TURN_TIME_LIMIT;
+
+    // --- PAUSE SYSTEM ---
+    private boolean isGamePaused = false;
+
+    // Koordinat Tombol Pause (Pojok Kiri Atas)
+    private static final double PAUSE_BTN_X = 20;
+    private static final double PAUSE_BTN_Y = 20;
+    private static final double PAUSE_BTN_SIZE = 40;
 
     @Override
     public void start(Stage primaryStage) {
@@ -73,6 +87,8 @@ public class BilliardApp extends Application {
         // LOAD UI SPRITE
         try {
             uiSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+            // Kita load juga ball sprite sheet untuk keperluan UI Tracker
+            ballSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
         } catch (Exception e) {
             System.err.println("Gagal load UI: " + e.getMessage());
         }
@@ -91,6 +107,7 @@ public class BilliardApp extends Application {
         // --- INPUT HANDLING PINTAR (Ball in Hand vs Shooting) ---
 
         canvas.setOnMouseMoved(e -> {
+            if (isGamePaused) return;
             updateOffsets();
             double logicX = e.getX() - currentOffsetX;
             double logicY = e.getY() - currentOffsetY;
@@ -110,8 +127,20 @@ public class BilliardApp extends Application {
             double logicX = e.getX() - currentOffsetX;
             double logicY = e.getY() - currentOffsetY;
 
+            // --- DETEKSI KLIK TOMBOL PAUSE (Screen Coordinates) ---
+            // Kita pakai e.getX() (Screen Space) karena tombol pause tidak ikut geser meja
+            if (e.getX() >= PAUSE_BTN_X && e.getX() <= PAUSE_BTN_X + PAUSE_BTN_SIZE &&
+                    e.getY() >= PAUSE_BTN_Y && e.getY() <= PAUSE_BTN_Y + PAUSE_BTN_SIZE) {
+
+                isGamePaused = !isGamePaused; // Toggle Pause
+                return; // Stop processing click ke game
+            }
+
+            // --- JIKA GAME PAUSED, ABAIKAN INPUT LAIN ---
+            if (isGamePaused) return;
+
+            // Logic Game Normal
             if (isBallInHandActive()) {
-                // Klik saat Ball in Hand = Mencoba Menaruh Bola
                 tryPlaceCueBall(logicX, logicY);
             } else {
                 cueStick.handleMousePressed(logicX, logicY);
@@ -119,6 +148,7 @@ public class BilliardApp extends Application {
         });
 
         canvas.setOnMouseDragged(e -> {
+            if (isGamePaused) return;
             updateOffsets();
             double logicX = e.getX() - currentOffsetX;
             double logicY = e.getY() - currentOffsetY;
@@ -132,6 +162,7 @@ public class BilliardApp extends Application {
         });
 
         canvas.setOnMouseReleased(e -> {
+            if (isGamePaused) return;
             updateOffsets();
             double logicX = e.getX() - currentOffsetX;
             double logicY = e.getY() - currentOffsetY;
@@ -271,6 +302,17 @@ public class BilliardApp extends Application {
 
             updateOffsets();
 
+            renderGame();
+
+            // GAMBAR UI TAMBAHAN
+            drawPauseMenu(gc);   // Overlay hanya jika isGamePaused=true
+            drawPauseButton(gc); // Tombol selalu terlihat
+
+            // --- JIKA PAUSE, STOP LOGIC DI BAWAH INI ---
+            if (isGamePaused) {
+                return; // Skip update fisika & rules
+            }
+
             // 1. UPDATE FISIKA
             // Hanya update fisika jika TIDAK sedang menaruh bola (biar ga gerak2 sendiri)
             if (!isBallInHandActive()) {
@@ -282,17 +324,37 @@ public class BilliardApp extends Application {
                     }
                 }
             }
-
             cueStick.update(deltaTime); // Stik update (animasi idle dll)
 
+            // --- UPDATE LOGIC SHOT TIMER ---
+            if (is8BallMode && !gameRules.isGameOver()) {
+                // Timer hanya jalan jika:
+                // 1. Bola semua diam (fase membidik)
+                // 2. Tidak sedang menaruh bola (Ball in Hand placement mode pause dulu biar ga panik)
+                boolean isAimingPhase = cueStick.areAllBallsStopped();
+                boolean isPlacingMode = gameRules.isBallInHand();
+
+                if (isAimingPhase && !isPlacingMode) {
+                    currentTurnTime -= deltaTime;
+
+                    // JIKA WAKTU HABIS (TIME FOUL)
+                    if (currentTurnTime <= 0) {
+                        // Reset Timer
+                        currentTurnTime = TURN_TIME_LIMIT;
+
+                        // Panggil Rule: Time Foul
+                        // Kita bisa pakai handleFoul lewat method helper atau public access
+                        // Karena handleFoul private, kita trigger via switchTurn manual atau bikin method public baru.
+                        // Solusi Cepat: Kita paksa ganti giliran & kasih ball in hand via GameRules logic.
+
+                        // PENTING: Kita harus buat method public 'triggerTimeFoul' di GameRules dulu
+                        // Tapi untuk sekarang, kita anggap GameRules punya method itu.
+                        gameRules.triggerTimeFoul();
+                    }
+                }
+            }
             // 2. LOGIC TURN
             checkGameRules();
-
-            // 3. RENDER
-            renderGame();
-
-            // Note: handleCueBallRespawn dihapus/dimodifikasi
-            // karena logic respawn sekarang ditangani oleh Ball-in-Hand rules
         }
 
         private void checkGameRules() {
@@ -310,6 +372,11 @@ public class BilliardApp extends Application {
         private void processTurnEnd() {
             if (is8BallMode) {
                 List<ObjectBall> potted = physicsEngine.getPocketedBalls();
+
+                for (ObjectBall b : potted) {
+                    pocketHistory.add(b.getNumber());
+                }
+
                 boolean foul = physicsEngine.isCueBallPocketed();
                 Ball firstHit = physicsEngine.getFirstHitBall();
 
@@ -323,6 +390,7 @@ public class BilliardApp extends Application {
                 if (!gameRules.isGameOver()) {
                     gameRules.processTurn(potted, foul, remaining, firstHit);
 
+                    currentTurnTime = TURN_TIME_LIMIT;
                     // CEK KHUSUS: Apakah sekarang Ball In Hand?
                     if (gameRules.isBallInHand()) {
                         // Jika Cue Ball masuk (Scratch), dia mati (active=false).
@@ -344,11 +412,19 @@ public class BilliardApp extends Application {
         }
 
         private void renderGame() {
+            // 1. BERSIHKAN LAYAR
             gc.clearRect(0, 0, gc.getCanvas().getWidth(), gc.getCanvas().getHeight());
+
+            // 2. LAYER PALING BAWAH: Background Sidebar (Pipa & Keranjang)
+            // Kita gambar ini DULUAN, supaya nanti tertimpa oleh Meja.
+            // Ini kuncinya agar pipa terlihat "muncul dari bawah meja".
+            drawSideBarBackground(gc);
+
+            // 3. LAYER TENGAH: Game World (Meja, Bola, Stik)
             gc.save();
             gc.translate(currentOffsetX, currentOffsetY);
 
-            table.draw(gc);
+            table.draw(gc); // Meja digambar di sini, menutupi pangkal pipa
 
             // Gambar Bola (Termasuk CueBall saat didrag)
             for (GameObject obj : gameObjects) {
@@ -360,7 +436,6 @@ public class BilliardApp extends Application {
                 cueStick.draw(gc);
             } else {
                 // Visual Bantuan saat Dragging
-                // Lingkaran di bawah bola putih untuk indikasi "Placing Mode"
                 gc.setStroke(Color.WHITE);
                 gc.setLineWidth(2);
                 gc.setLineDashes(5);
@@ -369,6 +444,11 @@ public class BilliardApp extends Application {
             }
 
             gc.restore();
+
+            // 4. LAYER ATAS: Isi Keranjang & HUD
+            // Bola history digambar belakangan supaya muncul DI ATAS keranjang background
+            drawSideBarBalls(gc);
+
             drawHUD();
         }
 
@@ -380,84 +460,40 @@ public class BilliardApp extends Application {
 
             // --- HUD 8-BALL MODE ---
             if (is8BallMode) {
-                gc.setFont(Font.font("Consolas", FontWeight.BOLD, 22));
-
+                // TAMPILAN BARU 8-BALL
                 if (gameRules.isGameOver()) {
-                    // --- TAMPILAN AKHIR PERMAINAN ---
+                    // Layar Game Over (Biarkan kode Game Over yang sudah Anda buat sebelumnya di sini)
+                    // ... (Kode Winner/Loser Screen Anda yang bagus tadi) ...
 
+                    // Copy paste logic Game Over warna hijau/merah Anda di sini
                     if (gameRules.isCleanWin()) {
-                        // MENANG BERSIH (HIJAU)
                         gc.setFill(Color.LIMEGREEN);
-                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
-                        gc.fillText("🏆 WINNER! 🏆", 20, 50);
-
-                        gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 22));
-                        // Tampilkan pesan "VICTORY! PLAYER X WINS!"
-                        gc.fillText(gameRules.getStatusMessage(), 20, 90);
-
+                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 40));
+                        gc.fillText("🏆 WINNER! 🏆", 400, 300); // Center Screen roughly
+                        gc.fillText(gameRules.getStatusMessage(), 350, 350);
                     } else {
-                        // GAME OVER KARENA FOUL (MERAH)
                         gc.setFill(Color.RED);
-                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
-                        gc.fillText("☠ GAME OVER ☠", 20, 50);
-
-                        gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
-                        // Tampilkan pesan "GAME OVER! PLAYER X LOST (Early 8-Ball)"
-                        gc.fillText(gameRules.getStatusMessage(), 20, 90);
+                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 40));
+                        gc.fillText("☠ GAME OVER ☠", 380, 300);
+                        gc.fillText(gameRules.getStatusMessage(), 300, 350);
                     }
-
-                    // Pesan Restart
-                    gc.setFont(Font.font("Consolas", 16));
-                    gc.setFill(Color.YELLOW);
-                    gc.fillText("Press RESTART button to play again.", 20, 120);
 
                 } else {
-                    // ... (Tampilan In-Game / Turn Player Tetap Sama) ...
-                    // Copy paste bagian 'else' dari kode sebelumnya di sini
-                    String player = (gameRules.getCurrentTurn() == GameRules.PlayerTurn.PLAYER_1) ? "PLAYER 1" : "PLAYER 2";
-                    gc.setFill(Color.YELLOW);
-                    gc.fillText("TURN: " + player, 20, 50);
+                    // IN-GAME HUD (BALL TRACKER)
+                    drawBallTracker(gc);
 
-                    String targetText = "OPEN TABLE";
-                    Color targetColor = Color.WHITE;
-
-                    GameRules.TableState state = gameRules.getTableState();
-                    if (state != GameRules.TableState.OPEN) {
-                        boolean isP1 = (gameRules.getCurrentTurn() == GameRules.PlayerTurn.PLAYER_1);
-                        boolean isSolid = (state == GameRules.TableState.P1_SOLID && isP1) ||
-                                (state == GameRules.TableState.P1_STRIPES && !isP1);
-
-                        targetText = isSolid ? "SOLIDS (1-7)" : "STRIPES (9-15)";
-                        targetColor = isSolid ? Color.ORANGE : Color.CYAN;
-
-                        // TAMBAHAN VISUAL: Jika sudah masuk fase 8-Ball
-                        // Kita bisa cek manual atau tambah method di GameRules,
-                        // tapi sementara pakai warna target saja sudah cukup jelas.
-                    }
-
-                    gc.setFill(targetColor);
-                    gc.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
-                    gc.fillText("GOAL: " + targetText, 20, 75);
-
-                    gc.setFill(Color.LIGHTGREEN);
-                    gc.setFont(Font.font("Consolas", 16));
-                    gc.fillText("MSG: " + gameRules.getStatusMessage(), 20, 100);
-
+                    // BALL IN HAND ALERT (Tampilkan Besar di Tengah Layar)
                     if (gameRules.isBallInHand()) {
-                        gc.setFill(Color.MAGENTA);
-                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 26));
-                        gc.fillText("BALL IN HAND", 20, 140);
-                        gc.setFont(Font.font("Consolas", 16));
                         gc.setFill(Color.WHITE);
-                        gc.fillText("(Click to place cue ball)", 20, 165);
+                        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
+                        gc.fillText("BALL IN HAND", (canvas.getWidth()/2) - 100, 150);
                     }
                 }
             } else {
                 // ARCADE MODE
                 if (physicsEngine != null) {
                     gc.setFill(Color.YELLOW);
+                    gc.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
                     gc.fillText("SCORE: " + physicsEngine.getArcadeScore(), 20, 50);
                 }
             }
@@ -525,6 +561,373 @@ public class BilliardApp extends Application {
             // Taruh teks sedikit di atas bar
             gc.fillText((int)(ratio * 100) + "%", barX + maxBarWidth + 10, barY + barHeight);
         }
+    }
+
+    /**
+     * Menggambar status bola pemain (Mana yang sisa, mana yang sudah masuk).
+     * UPDATE LAYOUT: Menggeser posisi player lebih ke tengah layar (Area Kuning).
+     */
+    /**
+     * Menggambar status bola pemain.
+     * UPDATE: Hide bola saat OPEN table, dan Hapus teks kategori.
+     */
+    private void drawBallTracker(GraphicsContext gc) {
+        boolean[] isBallActive = new boolean[16];
+        for (GameObject obj : gameObjects) {
+            if (obj instanceof ObjectBall) {
+                ObjectBall b = (ObjectBall) obj;
+                if (b.isActive()) isBallActive[b.getNumber()] = true;
+            }
+        }
+
+        GameRules.TableState state = gameRules.getTableState();
+        GameRules.PlayerTurn turn = gameRules.getCurrentTurn();
+
+        boolean p1IsSolid = true;
+        if (state == GameRules.TableState.P1_STRIPES) p1IsSolid = false;
+
+        // Layout Config
+        double centerX = canvas.getWidth() / 2;
+        double offsetFromCenter = 300;
+
+        // Render Player 1 (Kiri)
+        // Kita kirim 'state' untuk pengecekan apakah harus gambar bola atau tidak
+        drawPlayerStats(gc, "PLAYER 1", p1IsSolid, isBallActive,
+                centerX - offsetFromCenter - 150, 30,
+                turn == GameRules.PlayerTurn.PLAYER_1, state);
+
+        // Render Player 2 (Kanan)
+        drawPlayerStatsRightAligned(gc, "PLAYER 2", !p1IsSolid, isBallActive,
+                centerX + offsetFromCenter + 150, 30,
+                turn == GameRules.PlayerTurn.PLAYER_2, state);
+
+        drawBottomRightStatus(gc);
+    }
+
+    // Helper Player 1 (Kiri)
+    private void drawPlayerStats(GraphicsContext gc, String name, boolean isSolid, boolean[] activeBalls,
+                                 double x, double y, boolean isMyTurn, GameRules.TableState state) {
+        // 1. Nama Pemain (Selalu Tampil)
+        gc.setFill(isMyTurn ? Color.YELLOW : Color.GRAY);
+        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
+        gc.fillText(name, x, y);
+
+        // --- VISUAL SHOT TIMER (KIRI) ---
+        if (isMyTurn && !gameRules.isGameOver() && !gameRules.isBallInHand()) {
+            double barW = 120; // Panjang Bar
+            double barH = 4;   // Tebal Bar
+            double barY = y + 5; // Sedikit di bawah nama
+
+            // Background Abu
+            gc.setFill(Color.rgb(50, 50, 50));
+            gc.fillRect(x, barY, barW, barH);
+
+            // Isi Bar (Menyusut)
+            double ratio = Math.max(0, currentTurnTime / TURN_TIME_LIMIT);
+
+            // Warna: Hijau -> Kuning -> Merah
+            if (ratio > 0.5) gc.setFill(Color.LIME);
+            else if (ratio > 0.2) gc.setFill(Color.ORANGE);
+            else gc.setFill(Color.RED);
+
+            gc.fillRect(x, barY, barW * ratio, barH);
+        }
+
+        // 2. Cek State: Jika OPEN, berhenti di sini (Jangan gambar bola/teks apapun)
+        if (state == GameRules.TableState.OPEN) {
+            return;
+        }
+
+        // 3. Gambar Bola Mini (Hanya jika sudah assigned)
+        // Teks "SOLIDS/STRIPES" SUDAH DIHAPUS sesuai request
+
+        double ballSize = 20;
+        double spacing = 22;
+        int startBall = isSolid ? 1 : 9;
+        int endBall = isSolid ? 7 : 15;
+
+        for (int i = startBall; i <= endBall; i++) {
+            double bx = x + ((i - startBall) * spacing);
+            double by = y + 15; // Jarak dikit dari nama
+
+            drawMiniBall(gc, i, bx, by, ballSize, activeBalls[i]);
+        }
+    }
+
+    // Helper Player 2 (Kanan)
+    private void drawPlayerStatsRightAligned(GraphicsContext gc, String name, boolean isSolid, boolean[] activeBalls,
+                                             double x, double y, boolean isMyTurn, GameRules.TableState state) {
+        // 1. Nama Pemain
+        gc.setFill(isMyTurn ? Color.YELLOW : Color.GRAY);
+        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
+        gc.fillText(name, x - 90, y);
+
+        // --- VISUAL SHOT TIMER (KANAN) ---
+        if (isMyTurn && !gameRules.isGameOver() && !gameRules.isBallInHand()) {
+            double barW = 120;
+            double barH = 4;
+            double barY = y + 5;
+            double barX = x - 90; // Samakan start X dengan nama
+
+            // Background
+            gc.setFill(Color.rgb(50, 50, 50));
+            gc.fillRect(barX, barY, barW, barH);
+
+            // Isi Bar (Rata Kanan effect? Atau Rata Kiri biasa saja biar konsisten)
+            // Kita buat rata kiri (standard reading)
+            double ratio = Math.max(0, currentTurnTime / TURN_TIME_LIMIT);
+
+            if (ratio > 0.5) gc.setFill(Color.LIME);
+            else if (ratio > 0.2) gc.setFill(Color.ORANGE);
+            else gc.setFill(Color.RED);
+
+            gc.fillRect(barX, barY, barW * ratio, barH);
+        }
+
+        // 2. Cek State: Jika OPEN, return.
+        if (state == GameRules.TableState.OPEN) {
+            return;
+        }
+
+        // 3. Gambar Bola Mini (Rata Kanan)
+        double ballSize = 20;
+        double spacing = 22;
+        int startBall = isSolid ? 1 : 9;
+        int endBall = isSolid ? 7 : 15;
+
+        for (int i = endBall; i >= startBall; i--) {
+            int offset = endBall - i;
+            double bx = x - ballSize - (offset * spacing);
+            double by = y + 15;
+
+            drawMiniBall(gc, i, bx, by, ballSize, activeBalls[i]);
+        }
+    }
+
+    // Menggambar Sprite Bola Kecil
+    private void drawMiniBall(GraphicsContext gc, int number, double x, double y, double size, boolean isActive) {
+        if (ballSpriteSheet == null) return;
+
+        // Logika Sprite (Sama dengan class Ball)
+        double srcX = 0;
+        double srcY = 0;
+        double spriteSize = 16; // Ukuran asli di PNG
+
+        if (number <= 8) { // 1-8 (Row 1)
+            srcX = (number - 1) * spriteSize;
+            srcY = 0;
+        } else { // 9-15 (Row 2)
+            srcX = (number - 9) * spriteSize;
+            srcY = 16;
+        }
+
+        // Efek Visual: Jika bola sudah masuk (isActive == false), buat transparan/gelap
+        if (!isActive) {
+            gc.setGlobalAlpha(0.3); // Redup
+        }
+
+        gc.drawImage(ballSpriteSheet, srcX, srcY, spriteSize, spriteSize, x, y, size, size);
+
+        gc.setGlobalAlpha(1.0); // Reset alpha
+    }
+
+    /**
+     * Menampilkan pesan status game (Foul, Info, Win).
+     * UPDATE: Menggunakan JavaFX Shapes untuk menggambar ikon Foul (Lebih Konsisten).
+     */
+    private void drawBottomRightStatus(GraphicsContext gc) {
+        double screenW = canvas.getWidth();
+        double screenH = canvas.getHeight();
+
+        double boxW = 350;
+        double boxH = 40;
+        double x = screenW - boxW - 30;
+        double y = screenH - boxH - 20;
+
+        String msg = gameRules.getStatusMessage();
+
+        if (msg != null && !msg.isEmpty()) {
+            // 1. Background Box
+            gc.setFill(Color.rgb(0, 0, 0, 0.8));
+            gc.fillRoundRect(x, y, boxW, boxH, 10, 10);
+
+            // 2. Border Logic
+            Color statusColor = Color.WHITE;
+            if (msg.contains("FOUL")) statusColor = Color.RED;
+            else if (msg.contains("WIN") || msg.contains("VICTORY")) statusColor = Color.LIME;
+            else if (msg.contains("Nice") || msg.contains("Good")) statusColor = Color.CYAN;
+
+            gc.setStroke(statusColor);
+            gc.setLineWidth(2);
+            gc.strokeRoundRect(x, y, boxW, boxH, 10, 10);
+
+            // 3. Logic Ikon & Offset Teks
+            double textOffsetX = 15;
+
+            // GAMBAR IKON FOUL SECARA MANUAL (PROCEDURAL)
+            if (msg.contains("FOUL")) {
+                double iconSize = 22;
+                double iconX = x + 10;
+                double iconY = y + (boxH - iconSize) / 2; // Center Vertikal
+
+                gc.save();
+                gc.setStroke(Color.RED);
+                gc.setLineWidth(2.5); // Ketebalan garis
+
+                // A. Gambar Lingkaran
+                gc.strokeOval(iconX, iconY, iconSize, iconSize);
+
+                // B. Gambar Silang (X)
+                // Kita beri padding 5px agar silang berada di dalam lingkaran
+                gc.strokeLine(iconX + 6, iconY + 6, iconX + iconSize - 6, iconY + iconSize - 6);
+                gc.strokeLine(iconX + iconSize - 6, iconY + 6, iconX + 6, iconY + iconSize - 6);
+
+                gc.restore();
+
+                textOffsetX = 45; // Geser teks agar tidak menumpuk ikon
+            }
+
+            // 4. Render Teks
+            gc.setFill(statusColor);
+            gc.setFont(Font.font("Consolas", FontWeight.BOLD, 16));
+            gc.setTextAlign(javafx.scene.text.TextAlignment.LEFT);
+            gc.fillText(msg, x + textOffsetX, y + 26);
+        }
+    }
+
+    /**
+     * LAYER BAWAH: Menggambar Pipa & Keranjang Kosong.
+     */
+    private void drawSideBarBackground(GraphicsContext gc) {
+        double screenW = canvas.getWidth();
+        double screenH = canvas.getHeight();
+
+        // --- KOORDINAT ---
+        double sidebarX = screenW - 100;
+        double bottomY = screenH - 110;
+        double ballSize = 26;
+        double spacing = 28;
+        double maxBalls = 15;
+
+        double railWidth = ballSize + 10;
+        double railHeight = (maxBalls * spacing) + 20;
+        double railTopY = bottomY - railHeight;
+        double centerX = sidebarX + (railWidth / 2);
+
+        // Titik Keluar Meja (Pojok Kanan Atas)
+        // Geser ke KIRI (-5) agar ujung pipa nanti tertutup meja saat meja digambar
+        double tableExitX = currentOffsetX + GAME_WIDTH - 5;
+        double tableExitY = currentOffsetY + 5;
+        double pipeRadius = 70;
+
+        // --- 1. GAMBAR PIPA PENGHUBUNG ---
+        gc.save();
+        gc.setStroke(Color.rgb(85, 0, 0)); // Warna Kayu Gelap
+        gc.setLineWidth(25);
+        gc.setLineCap(javafx.scene.shape.StrokeLineCap.BUTT);
+
+        // Garis Horizontal (Dari Bawah Meja -> Mulai Lengkung)
+        double turnCenterX = centerX - pipeRadius;
+        gc.strokeLine(tableExitX, tableExitY, turnCenterX, tableExitY);
+
+        // Busur Lengkung (Elbow)
+        gc.strokeArc(centerX - (pipeRadius * 2), tableExitY,
+                pipeRadius * 2, pipeRadius * 2,
+                90, -90, javafx.scene.shape.ArcType.OPEN);
+
+        // Garis Vertikal
+        double verticalStartY = tableExitY + pipeRadius;
+        gc.strokeLine(centerX, verticalStartY, centerX, railTopY + 15);
+        gc.restore();
+
+        // --- 2. GAMBAR KERANJANG (RAIL FRAME) ---
+        gc.setFill(Color.rgb(20, 20, 20, 0.8));
+        gc.fillRoundRect(sidebarX, railTopY - 5, railWidth, railHeight + 5, 15, 15);
+
+        gc.setStroke(Color.rgb(85, 0, 0));
+        gc.setLineWidth(4);
+        gc.strokeLine(sidebarX, railTopY + 5, sidebarX, bottomY);
+        gc.strokeLine(sidebarX + railWidth, railTopY + 5, sidebarX + railWidth, bottomY);
+        gc.strokeArc(sidebarX, bottomY - 15, railWidth, 30, 180, 180, javafx.scene.shape.ArcType.OPEN);
+    }
+
+    /**
+     * LAYER ATAS: Menggambar Bola di dalam keranjang.
+     */
+    private void drawSideBarBalls(GraphicsContext gc) {
+        if (pocketHistory.isEmpty()) return;
+
+        double screenW = canvas.getWidth();
+        double screenH = canvas.getHeight();
+        double sidebarX = screenW - 100;
+        double bottomY = screenH - 110;
+        double ballSize = 26;
+        double spacing = 28;
+        double railWidth = ballSize + 10;
+        double centerX = sidebarX + (railWidth / 2);
+
+        // Logika Stack Up (Bawah ke Atas)
+        for (int i = 0; i < pocketHistory.size(); i++) {
+            int ballNum = pocketHistory.get(i);
+            double y = bottomY - 15 - (i * spacing);
+            drawMiniBall(gc, ballNum, centerX - (ballSize/2), y, ballSize, true);
+        }
+    }
+
+    /**
+     * Menggambar Tombol Pause (Ikon Garis Dua ||) di pojok kiri atas.
+     */
+    private void drawPauseButton(GraphicsContext gc) {
+        // Efek Hover/Click bisa ditambahkan nanti, sekarang statis dulu
+
+        // 1. Background Kotak
+        gc.setFill(Color.rgb(30, 30, 30, 0.8));
+        gc.fillRoundRect(PAUSE_BTN_X, PAUSE_BTN_Y, PAUSE_BTN_SIZE, PAUSE_BTN_SIZE, 10, 10);
+
+        // 2. Border Putih
+        gc.setStroke(Color.WHITE);
+        gc.setLineWidth(2);
+        gc.strokeRoundRect(PAUSE_BTN_X, PAUSE_BTN_Y, PAUSE_BTN_SIZE, PAUSE_BTN_SIZE, 10, 10);
+
+        // 3. Ikon Pause (Dua Garis Vertikal)
+        gc.setFill(Color.WHITE);
+        double barW = 6;
+        double barH = 16;
+        double gap = 6;
+
+        // Center ikon di dalam kotak
+        double centerX = PAUSE_BTN_X + (PAUSE_BTN_SIZE / 2);
+        double centerY = PAUSE_BTN_Y + (PAUSE_BTN_SIZE / 2);
+
+        gc.fillRect(centerX - barW - (gap/2), centerY - (barH/2), barW, barH); // Bar Kiri
+        gc.fillRect(centerX + (gap/2), centerY - (barH/2), barW, barH);       // Bar Kanan
+    }
+
+    /**
+     * Menggambar Layar Gelap + Menu saat game dipause.
+     */
+    private void drawPauseMenu(GraphicsContext gc) {
+        if (!isGamePaused) return;
+
+        double screenW = canvas.getWidth();
+        double screenH = canvas.getHeight();
+
+        // 1. Overlay Gelap (Dimmed Background)
+        gc.setFill(Color.rgb(0, 0, 0, 0.7)); // Hitam transparan 70%
+        gc.fillRect(0, 0, screenW, screenH);
+
+        // 2. Teks Judul PAUSED
+        gc.setFill(Color.WHITE);
+        gc.setFont(Font.font("Consolas", FontWeight.BOLD, 60));
+        gc.setTextAlign(javafx.scene.text.TextAlignment.CENTER);
+        gc.fillText("PAUSED", screenW / 2, screenH / 2 - 50);
+
+        // 3. Instruksi Sederhana
+        gc.setFont(Font.font("Consolas", FontWeight.NORMAL, 20));
+        gc.setFill(Color.YELLOW);
+        gc.fillText("Click PAUSE button again to Resume", screenW / 2, screenH / 2 + 20);
+
+        // (Nanti di Fase Main Menu, kita bisa ganti ini dengan tombol interaktif Restart/Exit)
     }
 
     public static void main(String[] args) {
