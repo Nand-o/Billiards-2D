@@ -20,6 +20,7 @@ public class CueStick implements GameObject {
     private List<Ball> allBalls; // Referensi ke semua bola untuk perhitungan prediksi
     private double tableWidth, tableHeight;
     private GameRules gameRules;
+    private boolean arcadeMode = false;
 
     // --- State Aiming (Status Bidikan) ---
     private boolean isAiming = false;       // Apakah pemain sedang menahan klik mouse?
@@ -50,6 +51,10 @@ public class CueStick implements GameObject {
         this.tableWidth = tableW;
         this.tableHeight = tableH;
         this.gameRules = rules; // Simpan rules
+    }
+
+    public void setArcadeMode(boolean isArcade) {
+        this.arcadeMode = isArcade;
     }
 
     @Override
@@ -147,10 +152,15 @@ public class CueStick implements GameObject {
         // --- VISUAL VALIDATOR ---
         boolean isValidShot = true;
 
-        if (targetBall != null && targetBall instanceof ObjectBall) {
-            ObjectBall objBall = (ObjectBall) targetBall;
-            // Tanya GameRules: Apakah bola yang mau ditabrak ini valid?
-            isValidShot = gameRules.isValidTarget(objBall.getType(), allBalls);
+        if (!arcadeMode) {
+            if (targetBall != null && targetBall instanceof ObjectBall) {
+                ObjectBall objBall = (ObjectBall) targetBall;
+                // Tanya GameRules (Hanya di 8-Ball Mode)
+                isValidShot = gameRules.isValidTarget(objBall.getType(), allBalls);
+            }
+        } else {
+            // DI ARCADE MODE: Semua bola sah!
+            isValidShot = true;
         }
 
         gc.save();

@@ -1,6 +1,8 @@
 package com.billiards2d;
 
 import javafx.scene.paint.Color;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
 
 /**
  * Kelas yang merepresentasikan Bola Objek (Object Ball).
@@ -16,6 +18,7 @@ public class ObjectBall extends Ball {
 
     /** Tipe bola (Solid/Stripe/8-Ball) untuk keperluan Rules. */
     private BallType type;
+    private boolean usePlainTexture = false;
 
     /**
      * Konstruktor untuk membuat Bola Objek.
@@ -28,6 +31,14 @@ public class ObjectBall extends Ball {
         super(position, Color.WHITE, 13.0); // Radius 13.0 sesuai update terakhir
         this.number = number;
         determineType();
+
+        if (ballSpriteSheet == null) {
+            try {
+                ballSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+            } catch (Exception e) {
+                System.err.println("Gagal load bola: " + e.getMessage());
+            }
+        }
     }
 
     /**
@@ -49,6 +60,11 @@ public class ObjectBall extends Ball {
         }
     }
 
+    // SETTER BARU
+    public void setUsePlainTexture(boolean plain) {
+        this.usePlainTexture = plain;
+    }
+
     /**
      * Mengembalikan nomor bola.
      * @return int nomor bola.
@@ -63,5 +79,54 @@ public class ObjectBall extends Ball {
      */
     public BallType getType() {
         return type;
+    }
+
+    @Override
+    public void draw(GraphicsContext gc) {
+        if (!active) return; // Jangan gambar jika sudah masuk
+
+        if (ballSpriteSheet != null) {
+            double r = getRadius();
+            double size = r * 2;
+            double drawX = position.getX() - r;
+            double drawY = position.getY() - r;
+
+            // --- LOGIKA MAPPING SPRITE ---
+            double srcX = 0;
+            double srcY = 0;
+            double spriteSize = 16; // Ukuran grid aset
+
+            if (usePlainTexture && number != 8) {
+                // --- MODE ARCADE (POLOS) ---
+                // Bola 8 tetap pakai tekstur standar (Hitam Angka 8)
+
+                if (number == 3) {
+                    // MERAH POLOS (Menggantikan bola 3)
+                    srcX = 128;
+                    srcY = 0;
+                }
+                else if (number == 1) {
+                    // KUNING POLOS (Menggantikan bola 1)
+                    srcX = 128;
+                    srcY = 16;
+                }
+            }
+            else {
+                // --- MODE STANDAR (ANGKA) ---
+                if (number <= 8) { // Baris Atas (1-8)
+                    srcX = (number - 1) * spriteSize;
+                    srcY = 0;
+                } else { // Baris Bawah (9-15)
+                    srcX = (number - 9) * spriteSize;
+                    srcY = 16;
+                }
+            }
+
+            gc.drawImage(ballSpriteSheet, srcX, srcY, spriteSize, spriteSize, drawX, drawY, size, size);
+
+        } else {
+            // Fallback jika gambar gagal load
+            super.draw(gc);
+        }
     }
 }

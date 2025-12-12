@@ -166,4 +166,27 @@ public class PhysicsEngine implements GameObject {
         b1.setVelocity(b1.getVelocity().subtract(normalVector.multiply(impulse * b2.getMass())).multiply(restitution));
         b2.setVelocity(b2.getVelocity().add(normalVector.multiply(impulse * b1.getMass())).multiply(restitution));
     }
+
+    /**
+     * Mengubah skor arcade secara manual (bisa plus atau minus).
+     * Berguna untuk penalti foul.
+     */
+    public void modifyArcadeScore(int amount) {
+        this.arcadeScore += amount;
+        // Opsional: Cegah skor negatif
+        if (this.arcadeScore < 0) this.arcadeScore = 0;
+    }
+
+    // ... (Method lainnya) ...
+
+    /**
+     * DEBUG FEATURE: Memaksa bola masuk ke dalam laporan (Cheat).
+     */
+    public void forcePocketBall(ObjectBall ball) {
+        if (!pocketedBalls.contains(ball)) {
+            pocketedBalls.add(ball);
+            // Jangan lupa update score arcade juga biar puas liat angkanya naik
+            arcadeScore += 10;
+        }
+    }
 }
