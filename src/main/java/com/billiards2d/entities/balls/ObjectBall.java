@@ -66,6 +66,11 @@ public class ObjectBall extends Ball {
     }
 
     // SETTER BARU
+    /**
+     * Aktifkan tekstur polos (Arcade) untuk render bola selain bola 8.
+     *
+     * @param plain true untuk menggunakan tekstur polos
+     */
     public void setUsePlainTexture(boolean plain) {
         this.usePlainTexture = plain;
     }
@@ -86,7 +91,11 @@ public class ObjectBall extends Ball {
         return type;
     }
 
-    @Override
+    /**
+     * Gambar bola objek menggunakan sprite sheet.
+     *
+     * @param gc konteks grafis
+     */
     public void draw(GraphicsContext gc) {
         if (!active) return; // Jangan gambar jika sudah masuk
 

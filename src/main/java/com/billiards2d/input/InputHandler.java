@@ -48,7 +48,13 @@ public class InputHandler {
     private boolean isArcadeGameOver;
 
     /**
-     * Constructor for InputHandler.
+     * Constructor for `InputHandler`.
+     *
+     * @param cueStick instance `CueStick` untuk menggerakkan/menangani bidik
+     * @param cueBall instance `CueBall` (bola putih)
+     * @param gameRules instance `GameRules` untuk cek state seperti ball-in-hand
+     * @param gameObjects daftar objek permainan yang diperlukan untuk validasi posisi
+     * @param is8BallMode apakah mode permainan adalah 8-ball
      */
     public InputHandler(CueStick cueStick, CueBall cueBall, GameRules gameRules, 
                        List<GameObject> gameObjects, boolean is8BallMode) {
@@ -60,7 +66,10 @@ public class InputHandler {
     }
     
     /**
-     * Set callbacks for actions that affect main app state.
+     * Set callbacks used to affect the top-level application state.
+     *
+     * @param onTogglePause callback to toggle pause
+     * @param onDebugClearTable callback to clear the table in debug/arcade
      */
     public void setCallbacks(Runnable onTogglePause, Runnable onDebugClearTable) {
         this.onTogglePause = onTogglePause;
@@ -68,28 +77,39 @@ public class InputHandler {
     }
     
     /**
-     * Update cue stick reference (needed when cue stick is recreated).
+     * Update the `CueStick` reference (e.g., after recreation on restart).
+     *
+     * @param cueStick new CueStick instance
      */
     public void setCueStick(CueStick cueStick) {
         this.cueStick = cueStick;
     }
     
     /**
-     * Update cue ball reference (needed when game is restarted).
+     * Update the `CueBall` reference (e.g., after respawn or restart).
+     *
+     * @param cueBall new CueBall instance
      */
     public void setCueBall(CueBall cueBall) {
         this.cueBall = cueBall;
     }
     
     /**
-     * Update game rules reference (needed when game is restarted).
+     * Update `GameRules` reference.
+     *
+     * @param gameRules the GameRules instance to use
      */
     public void setGameRules(GameRules gameRules) {
         this.gameRules = gameRules;
     }
     
     /**
-     * Update game state flags (called each frame).
+     * Update transient game state used by input handling (called each frame).
+     *
+     * @param isGamePaused whether game is currently paused
+     * @param isArcadeGameOver whether arcade mode is over
+     * @param currentOffsetX current UI offset X for coordinate mapping
+     * @param currentOffsetY current UI offset Y for coordinate mapping
      */
     public void updateState(boolean isGamePaused, boolean isArcadeGameOver, 
                            double currentOffsetX, double currentOffsetY) {
@@ -100,7 +120,9 @@ public class InputHandler {
     }
     
     /**
-     * Handle mouse moved event.
+     * Handle mouse-move events and forward normalized coordinates to the cue stick.
+     *
+     * @param e MouseEvent from JavaFX
      */
     public void handleMouseMoved(MouseEvent e) {
         if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
@@ -113,7 +135,9 @@ public class InputHandler {
     }
     
     /**
-     * Handle mouse pressed event.
+     * Handle mouse-pressed events (starts aim or places cue ball in ball-in-hand).
+     *
+     * @param e MouseEvent
      */
     public void handleMousePressed(MouseEvent e) {
         // Cek Tombol Pause di Pojok Kiri Atas
@@ -134,7 +158,9 @@ public class InputHandler {
     }
     
     /**
-     * Handle mouse dragged event.
+     * Handle mouse-drag events, updates dragging/pullback state.
+     *
+     * @param e MouseEvent
      */
     public void handleMouseDragged(MouseEvent e) {
         if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
@@ -147,7 +173,9 @@ public class InputHandler {
     }
     
     /**
-     * Handle mouse released event.
+     * Handle mouse-release events and trigger the cue stick hit when appropriate.
+     *
+     * @param e MouseEvent
      */
     public void handleMouseReleased(MouseEvent e) {
         if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
@@ -158,7 +186,9 @@ public class InputHandler {
     }
     
     /**
-     * Handle keyboard pressed event.
+     * Handle key-pressed events for pause and debug shortcuts.
+     *
+     * @param event KeyEvent
      */
     public void handleKeyPressed(KeyEvent event) {
         KeyCode code = event.getCode();

@@ -22,17 +22,35 @@ import javafx.scene.paint.Color;
  */
 public abstract class Ball implements GameObject {
 
+    /** Posisi pusat bola dalam koordinat logika permainan. */
     protected Vector2D position;
+
+    /** Kecepatan bola sebagai vektor (pixel/detik). */
     protected Vector2D velocity;
+
+    /** Radius bola (pixel). */
     protected double radius;
+
+    /** Massa bola (dipakai pada perhitungan tumbukan sederhana). */
     protected double mass;
+
+    /** Warna fallback ketika sprite tidak tersedia. */
     protected Color color;
+
+    /** Status aktif: false jika bola telah ter-pocketed. */
     protected boolean active = true;
 
     // --- ASSET MANAGEMENT ---
-    // Gambar sprite sheet dimuat sekali untuk semua instance bola (static)
+    /** Sprite sheet yang memuat semua gambar bola (dibagikan antar instance). */
     protected static Image ballSpriteSheet;
 
+    /**
+     * Konstruktor dasar untuk sebuah bola.
+     *
+     * @param position posisi awal pusat bola
+     * @param color warna bola
+     * @param radius radius bola dalam piksel
+     */
     public Ball(Vector2D position, Color color, double radius) {
         this.position = position;
         this.velocity = new Vector2D(0, 0);
@@ -50,6 +68,11 @@ public abstract class Ball implements GameObject {
         }
     }
 
+    /**
+     * Update logika umum objek bola per frame.
+     *
+     * @param deltaTime waktu yang berlalu sejak frame sebelumnya (detik)
+     */
     @Override
     public void update(double deltaTime) {
         position = position.add(velocity.multiply(deltaTime));
@@ -60,6 +83,10 @@ public abstract class Ball implements GameObject {
 
     /**
      * Menggambar bola menggunakan SPRITE (Gambar).
+     *
+     * Gambar representasi bola pada canvas.
+     *
+     * @param gc konteks grafis yang digunakan untuk menggambar
      */
     @Override
     public void draw(GraphicsContext gc) {
@@ -111,12 +138,59 @@ public abstract class Ball implements GameObject {
     }
 
     // --- Getters/Setters Standard ---
+    /**
+     * Ambil posisi pusat bola.
+     *
+     * @return posisi sebagai Vector2D
+     */
     public Vector2D getPosition() { return position; }
+
+    /**
+     * Set posisi pusat bola.
+     *
+     * @param position posisi baru (Vector2D)
+     */
     public void setPosition(Vector2D position) { this.position = position; }
+
+    /**
+     * Ambil kecepatan saat ini dari bola.
+     *
+     * @return vektor kecepatan
+     */
     public Vector2D getVelocity() { return velocity; }
+
+    /**
+     * Set kecepatan bola.
+     *
+     * @param velocity vektor kecepatan baru
+     */
     public void setVelocity(Vector2D velocity) { this.velocity = velocity; }
+
+    /**
+     * Ambil radius bola (pixel).
+     *
+     * @return radius bola
+     */
     public double getRadius() { return radius; }
+
+    /**
+     * Ambil massa bola (digunakan untuk perhitungan impuls sederhana).
+     *
+     * @return massa bola
+     */
     public double getMass() { return mass; }
+
+    /**
+     * Apakah bola saat ini aktif di meja (belum masuk lubang).
+     *
+     * @return true jika aktif
+     */
     public boolean isActive() { return active; }
+
+    /**
+     * Tandai bola sebagai aktif atau tidak (mis. saat masuk lubang).
+     *
+     * @param active true untuk mengaktifkan kembali, false untuk menonaktifkan
+     */
     public void setActive(boolean active) { this.active = active; }
 }

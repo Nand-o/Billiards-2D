@@ -52,6 +52,12 @@ public class Table implements GameObject {
     private List<Pocket> pockets;
     private static Image tableImage;
 
+    /**
+     * Konstruktor meja.
+     *
+     * @param width lebar area meja (tanpa rail) dalam pixel
+     * @param height tinggi area meja (tanpa rail) dalam pixel
+     */
     public Table(double width, double height) {
         this.width = width;
         this.height = height;
@@ -127,6 +133,11 @@ public class Table implements GameObject {
     @Override
     public void update(double deltaTime) { }
 
+    /**
+     * Gambar meja dan overlay debug jika aktif.
+     *
+     * @param gc konteks grafis untuk menggambar meja
+     */
     @Override
     public void draw(GraphicsContext gc) {
         gc.save();
@@ -169,6 +180,14 @@ public class Table implements GameObject {
     }
 
     // UPDATE LOGIC: Cek terhadap TARGET POS (Magenta)
+    
+
+    /**
+     * Periksa apakah pusat `ball` berada di dalam zona target pocket (bola dinyatakan masuk).
+     *
+     * @param ball objek bola yang diperiksa
+     * @return true jika bola berada di dalam target pocket
+     */
     public boolean isBallInPocket(Ball ball) {
         for (Pocket p : pockets) {
             double dx = ball.getPosition().getX() - p.targetPos.getX();
@@ -182,17 +201,17 @@ public class Table implements GameObject {
         return false;
     }
 
-    // UPDATE LOGIC: Perketat deteksi Entrance
+    /**
+     * Periksa apakah pusat `ball` memasuki entrance zone pocket (digunakan untuk menonaktifkan dinding).
+     *
+     * @param ball objek bola yang diperiksa
+     * @return true jika bola berada di dalam entrance zone
+     */
     public boolean isInsidePocketEntrance(Ball ball) {
         for (Pocket p : pockets) {
             double dx = ball.getPosition().getX() - p.entrancePos.getX();
             double dy = ball.getPosition().getY() - p.entrancePos.getY();
             double distance = Math.sqrt(dx * dx + dy * dy);
-
-            // PERBAIKAN BUG BOLA BOCOR:
-            // Hapus "+ ball.getRadius()".
-            // Kita ingin dinding hanya mati jika TITIK TENGAH bola sudah masuk area Cyan.
-            // Ini mencegah bola yang hanya "menyenggol" pinggiran lubang untuk tembus dinding.
 
             if (distance < p.entranceRadius) {
                 return true;
@@ -201,7 +220,24 @@ public class Table implements GameObject {
         return false;
     }
 
+    /**
+     * Ambil lebar area meja (tanpa rail).
+     *
+     * @return lebar meja dalam pixel
+     */
     public double getWidth() { return width; }
+
+    /**
+     * Ambil tinggi area meja (tanpa rail).
+     *
+     * @return tinggi meja dalam pixel
+     */
     public double getHeight() { return height; }
+
+    /**
+     * Ambil tebal rail meja yang dipakai sebagai ukuran dinding.
+     *
+     * @return tebal wall/rail dalam pixel
+     */
     public double getWallThickness() { return Math.max(TABLE_RAIL_SIZE_X, TABLE_RAIL_SIZE_Y); }
 }

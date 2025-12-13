@@ -28,13 +28,23 @@ public class GameUIRenderer {
     private Image uiSpriteSheet;
     private Image ballSpriteSheet;
 
+    /**
+     * Buat renderer untuk UI menggunakan sprite-sheet yang disediakan.
+     *
+     * @param uiSpriteSheet gambar sprite UI
+     * @param ballSpriteSheet gambar sprite bola
+     */
     public GameUIRenderer(Image uiSpriteSheet, Image ballSpriteSheet) {
         this.uiSpriteSheet = uiSpriteSheet;
         this.ballSpriteSheet = ballSpriteSheet;
     }
 
     /**
-     * Menggambar power bar di kiri bawah layar
+     * Menggambar power bar di kiri bawah layar.
+     *
+     * @param gc konteks grafis
+     * @param canvasHeight tinggi kanvas saat ini
+     * @param powerRatio rasio kekuatan (0.0 - 1.0)
      */
     public void drawPowerBar(GraphicsContext gc, double canvasHeight, double powerRatio) {
         // Posisi Awal UI
@@ -96,7 +106,17 @@ public class GameUIRenderer {
     }
 
     /**
-     * Menggambar ball tracker untuk 8-ball mode
+     * Menggambar indikator status bola dan nama pemain (ball tracker) untuk 8-ball mode.
+     *
+     * @param gc konteks grafis
+     * @param canvasWidth lebar kanvas
+     * @param isBallActive array status aktif tiap nomor bola
+     * @param state status meja dari GameRules
+     * @param turn giliran pemain saat ini
+     * @param gameRules instance aturan permainan
+     * @param currentTurnTime sisa waktu giliran
+     * @param ballSpriteSheet sprite sheet bola
+     * @param is8BallMode apakah mode 8-ball aktif
      */
     public void drawBallTracker(GraphicsContext gc, double canvasWidth,
                                boolean[] isBallActive, GameRules.TableState state,
@@ -281,7 +301,12 @@ public class GameUIRenderer {
     }
 
     /**
-     * Menampilkan pesan status game (Foul, Info, Win)
+     * Menampilkan pesan status game di kanan bawah (FOUL, WIN, dll.).
+     *
+     * @param gc konteks grafis
+     * @param screenW lebar layar
+     * @param screenH tinggi layar
+     * @param statusMessage teks status yang akan ditampilkan
      */
     public void drawBottomRightStatus(GraphicsContext gc, double screenW, double screenH, String statusMessage) {
         double boxW = 350;
@@ -339,7 +364,13 @@ public class GameUIRenderer {
     }
 
     /**
-     * LAYER BAWAH: Menggambar Pipa &amp; Keranjang Kosong
+    * Gambar background sidebar (pipe &amp; rack frame) yang menampung bola hasil masuk.
+     *
+     * @param gc konteks grafis
+     * @param screenW lebar layar
+     * @param screenH tinggi layar
+     * @param currentOffsetX offset X permainan
+     * @param currentOffsetY offset Y permainan
      */
     public void drawSideBarBackground(GraphicsContext gc, double screenW, double screenH,
                                      double currentOffsetX, double currentOffsetY) {
@@ -393,7 +424,14 @@ public class GameUIRenderer {
     }
 
     /**
-     * LAYER ATAS: Menggambar Bola di dalam keranjang
+     * Gambar bola-bola yang sudah ter-pocketed dalam sidebar.
+     *
+     * @param gc konteks grafis
+     * @param screenW lebar layar
+     * @param screenH tinggi layar
+     * @param pocketHistory daftar nomor bola yang masuk (urutan)
+     * @param ballSpriteSheet sprite sheet bola
+     * @param is8BallMode apakah mode 8-ball aktif
      */
     public void drawSideBarBalls(GraphicsContext gc, double screenW, double screenH,
                                  java.util.List<Integer> pocketHistory, Image ballSpriteSheet, boolean is8BallMode) {
@@ -415,7 +453,11 @@ public class GameUIRenderer {
     }
 
     /**
-     * Menggambar tombol pause di pojok kiri atas
+     * Gambar tombol pause di pojok kiri atas.
+     *
+     * @param gc konteks grafis
+     * @param pauseBtnX posisi X tombol
+     * @param pauseBtnY posisi Y tombol
      */
     public void drawPauseButton(GraphicsContext gc, double pauseBtnX, double pauseBtnY) {
         double btnSize = PAUSE_BTN_SIZE;
@@ -442,7 +484,11 @@ public class GameUIRenderer {
     }
 
     /**
-     * Menggambar layar gelap + menu saat game dipause
+     * Gambar overlay pause (layar gelap + teks dan hint).
+     *
+     * @param gc konteks grafis
+     * @param screenW lebar layar
+     * @param screenH tinggi layar
      */
     public void drawPauseMenu(GraphicsContext gc, double screenW, double screenH) {
         // Layar Gelap Semi-transparan

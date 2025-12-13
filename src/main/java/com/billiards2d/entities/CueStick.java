@@ -50,8 +50,10 @@ public class CueStick implements GameObject {
      *
      * @param cueBall  Referensi ke bola putih yang akan dipukul.
      * @param allBalls Daftar semua bola di meja (untuk deteksi prediksi tabrakan).
-     * @param tableW   Lebar meja (untuk prediksi pantulan dinding).
-     * @param tableH   Tinggi meja.
+    * @param tableW   Lebar meja (untuk prediksi pantulan dinding).
+    * @param tableH   Tinggi meja.
+    * @param rules    instance {@link GameRules} untuk validasi aturan saat bidik/pukulan
+    * @param stickImage gambar sprite stik yang akan digunakan untuk rendering
      */
     public CueStick(CueBall cueBall, List<Ball> allBalls, double tableW, double tableH, GameRules rules, Image stickImage) {
         this.cueBall = cueBall;
@@ -61,11 +63,20 @@ public class CueStick implements GameObject {
         this.gameRules = rules;
         this.stickImage = stickImage;
     }
-
+    /**
+     * Atur mode arcade: jika true maka aturan target diabaikan.
+     *
+     * @param isArcade true untuk mengaktifkan arcade mode, false untuk normal
+     */
     public void setArcadeMode(boolean isArcade) {
         this.arcadeMode = isArcade;
     }
 
+    /**
+     * Perbarui status stik setiap frame.
+     *
+     * @param deltaTime waktu sejak frame terakhir dalam detik
+     */
     @Override
     public void update(double deltaTime) {
         // Logika update stik bisa ditambahkan di sini (misal animasi idle)
@@ -75,6 +86,8 @@ public class CueStick implements GameObject {
     /**
      * Menggambar stik dan elemen visual pendukung (garis prediksi).
      * Stik hanya digambar jika bola putih sedang berhenti atau bergerak sangat lambat.
+        *
+        * @param gc konteks grafis untuk menggambar
      */
     @Override
     public void draw(GraphicsContext gc) {
@@ -294,10 +307,23 @@ public class CueStick implements GameObject {
 
     // --- UPDATE HANDLERS: Terima koordinat langsung ---
 
+    /**
+     * Tangani event mouse bergerak untuk memperbarui posisi kursor.
+     * Posisi hanya digunakan saat tidak sedang men-drag (menarik) stik.
+     *
+     * @param x koordinat X kursor
+     * @param y koordinat Y kursor
+     */
     public void handleMouseMoved(double x, double y) {
         if (!isAiming) this.mousePos = new Vector2D(x, y);
     }
 
+    /**
+     * Tangani event mouse ditekan: memulai mode aiming bila bola sudah berhenti.
+     *
+     * @param x koordinat X mouse saat ditekan
+     * @param y koordinat Y mouse saat ditekan
+     */
     public void handleMousePressed(double x, double y) {
         if (!areAllBallsStopped()) return;
         isAiming = true;
@@ -305,6 +331,13 @@ public class CueStick implements GameObject {
         aimCurrent = new Vector2D(x, y);
     }
 
+    /**
+     * Tangani event drag mouse: memperbarui jarak tarik (pullback) stik.
+     * Drag hanya memengaruhi komponen vektor sepanjang arah bidikan.
+     *
+     * @param mouseX posisi X mouse saat drag
+     * @param mouseY posisi Y mouse saat drag
+     */
     public void handleMouseDragged(double mouseX, double mouseY) {
         if (isAiming) {
             aimCurrent = new Vector2D(mouseX, mouseY);
@@ -332,6 +365,12 @@ public class CueStick implements GameObject {
         }
     }
 
+    /**
+     * Tangani event mouse dilepas: hitung kekuatan dan pukul bola jika cukup kuat.
+     *
+     * @param x posisi X mouse saat dilepas
+     * @param y posisi Y mouse saat dilepas
+     */
     public void handleMouseReleased(double x, double y) {
         if (!isAiming) return;
 
@@ -354,7 +393,11 @@ public class CueStick implements GameObject {
         this.pullbackDistance = 0;
     }
 
-    // Helper: Cek apakah SEMUA bola (putih + warna) sudah berhenti
+    /**
+     * Periksa apakah semua bola yang aktif di meja telah berhenti.
+     *
+     * @return true jika tidak ada bola aktif yang bergerak
+     */
     public boolean areAllBallsStopped() {
         for (Ball ball : allBalls) {
             // Hanya cek bola yang masih aktif di meja
@@ -365,6 +408,11 @@ public class CueStick implements GameObject {
         return true; // Semua diam
     }
 
+    /**
+     * Mengetahui apakah pemain sedang berada dalam mode aiming (menarik stik).
+     *
+     * @return true jika sedang men-aim, false jika tidak
+     */
     public boolean isAiming() {
         return isAiming;
     }
@@ -372,6 +420,8 @@ public class CueStick implements GameObject {
     /**
      * Mengembalikan rasio kekuatan tarikan saat ini (0.0 sampai 1.0).
      * Digunakan untuk menggambar panjang Power Bar di UI.
+     *
+     * @return rasio kekuatan saat ini dalam rentang 0.0 hingga 1.0
      */
     public double getPowerRatio() {
         if (!isAiming) return 0.0;

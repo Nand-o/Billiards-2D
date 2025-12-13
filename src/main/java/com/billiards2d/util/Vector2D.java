@@ -29,11 +29,23 @@ public class Vector2D {
         this.y = y;
     }
 
+    /**
+     * Ambil komponen X dari vektor.
+     *
+     * @return nilai X
+     */
     public double getX() { return x; }
+
+    /**
+     * Ambil komponen Y dari vektor.
+     *
+     * @return nilai Y
+     */
     public double getY() { return y; }
 
     /**
      * Menjumlahkan vektor ini dengan vektor lain.
+     * @param other vektor yang akan dijumlahkan dengan vektor ini
      * @return Vektor baru hasil penjumlahan (this + other).
      */
     public Vector2D add(Vector2D other) {
@@ -42,6 +54,7 @@ public class Vector2D {
 
     /**
      * Mengurangkan vektor lain dari vektor ini.
+     * @param other vektor yang akan dikurangkan dari vektor ini
      * @return Vektor baru hasil pengurangan (this - other).
      */
     public Vector2D subtract(Vector2D other) {
@@ -51,6 +64,7 @@ public class Vector2D {
     /**
      * Mengalikan vektor dengan nilai skalar.
      * Digunakan untuk penskalaan (misalnya memperbesar/memperkecil kecepatan).
+     * @param scalar faktor skalar yang mengalikan komponen vektor
      * @return Vektor baru hasil perkalian (this * scalar).
      */
     public Vector2D multiply(double scalar) {
@@ -81,12 +95,20 @@ public class Vector2D {
      * Menghitung perkalian titik (dot product) dengan vektor lain.
      * Dot product berguna untuk memproyeksikan satu vektor ke vektor lain
      * (misalnya saat menghitung pantulan).
+     * @param other vektor kedua untuk operasi dot product
      * @return Nilai skalar hasil dot product.
      */
     public double dot(Vector2D other) {
         return this.x * other.x + this.y * other.y;
     }
 
+    
+
+    /**
+     * Kembalikan representasi string singkat dari vektor (debug).
+     *
+     * @return representasi Vector2D seperti "Vector2D(x, y)"
+     */
     @Override
     public String toString() {
         return String.format("Vector2D(%.2f, %.2f)", x, y);

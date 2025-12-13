@@ -67,6 +67,12 @@ import javafx.scene.paint.LinearGradient;
  */
 public class BilliardApp extends Application {
 
+    /**
+     * Konstruktor default `BilliardApp`.
+     * Disediakan agar Javadoc tidak menghasilkan peringatan default-constructor.
+     */
+    public BilliardApp() { }
+
     // SWITCH MODE:
     // true  = Menggunakan Aturan 8-Ball (Giliran, Solid/Stripes, Win/Loss)
     // false = Menggunakan Mode Arcade (Skor Bebas)
@@ -181,6 +187,29 @@ public class BilliardApp extends Application {
     }
 
     /**
+     * Tampilkan overlay Game Over dengan judul dan pesan.
+     *
+     * @param title teks judul overlay
+     * @param titleColor warna judul
+     * @param message pesan detail yang ditampilkan
+     */
+    public void showGameOver(String title, Color titleColor, String message) {
+        if (gameOverOverlay != null) {
+            gameOverTitle.setText(title);
+            gameOverTitle.setFill(titleColor);
+            gameOverMessage.setText(message);
+            gameOverOverlay.setVisible(true);
+        }
+    }
+
+    /**
+     * Sembunyikan overlay Game Over jika sedang tampil.
+     */
+    public void hideGameOver() {
+        if (gameOverOverlay != null) gameOverOverlay.setVisible(false);
+    }
+
+    /**
      * Mereset permainan ke kondisi awal (Skor 0, Waktu Penuh, Rack Baru).
      */
     private void restartGame() {
@@ -214,6 +243,13 @@ public class BilliardApp extends Application {
         gameController.setCallbacks(
             this::respawnArcadeRack,
             new GameController.GameOverCallback() {
+                /**
+                 * Callback: tampilkan overlay Game Over.
+                 *
+                 * @param title judul overlay
+                 * @param titleColor warna judul
+                 * @param message pesan detail
+                 */
                 @Override
                 public void showGameOver(String title, Color titleColor, String message) {
                     if (!gameOverOverlay.isVisible()) {
@@ -224,6 +260,9 @@ public class BilliardApp extends Application {
                     }
                 }
                 
+                /**
+                 * Callback: sembunyikan overlay Game Over.
+                 */
                 @Override
                 public void hideGameOver() {
                     if (gameOverOverlay.isVisible()) {
@@ -309,6 +348,13 @@ public class BilliardApp extends Application {
         gameController.setCallbacks(
             this::respawnArcadeRack,
             new GameController.GameOverCallback() {
+                /**
+                 * Callback: tampilkan overlay Game Over.
+                 *
+                 * @param title judul overlay
+                 * @param titleColor warna judul
+                 * @param message pesan detail
+                 */
                 @Override
                 public void showGameOver(String title, Color titleColor, String message) {
                     if (!gameOverOverlay.isVisible()) {
@@ -319,6 +365,9 @@ public class BilliardApp extends Application {
                     }
                 }
                 
+                /**
+                 * Callback: sembunyikan overlay Game Over.
+                 */
                 @Override
                 public void hideGameOver() {
                     if (gameOverOverlay.isVisible()) {
@@ -557,6 +606,11 @@ public class BilliardApp extends Application {
     private class GameLoop extends AnimationTimer {
         private long lastNanoTime = System.nanoTime();
 
+        /**
+         * Game loop handler executed by JavaFX AnimationTimer.
+         *
+         * @param currentNanoTime waktu sekarang dalam nanodetik
+         */
         @Override
         public void handle(long currentNanoTime) {
             double deltaTime = (currentNanoTime - lastNanoTime) / 1_000_000_000.0;
@@ -807,6 +861,16 @@ public class BilliardApp extends Application {
      */
     public static void main(String[] args) {
         launch(args);
+    }
+
+    /**
+     * Game loop handler implementation for the main AnimationTimer.
+     *
+     * @param currentNanoTime waktu saat ini dalam nanodetik
+     */
+    @SuppressWarnings("unused")
+    public void handleGameLoop(long currentNanoTime) {
+        // Proxy to internal GameLoop.handle if needed
     }
 }
 

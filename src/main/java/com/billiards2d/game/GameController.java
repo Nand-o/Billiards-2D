@@ -62,12 +62,33 @@ public class GameController {
      * Interface for game over callbacks
      */
     public interface GameOverCallback {
+        /**
+         * Tampilkan overlay game-over.
+         *
+         * @param title judul overlay (mis. "YOU WIN!" / "GAME OVER")
+         * @param titleColor warna judul
+         * @param message pesan tambahan / detail skor
+         */
         void showGameOver(String title, Color titleColor, String message);
+
+        /**
+         * Sembunyikan overlay game-over jika tampil.
+         */
         void hideGameOver();
     }
     
     /**
-     * Constructor for GameController
+     * Konstruktor untuk `GameController`.
+     *
+     * @param gameObjects list semua `GameObject` yang dikelola (termasuk bola)
+     * @param cueStick instance `CueStick` untuk interaksi pemain
+     * @param cueBall instance `CueBall` (bola putih)
+     * @param gameRules instance `GameRules` yang mengatur validasi dan penalti
+     * @param physicsEngine engine fisika untuk simulasi gerakan dan tumbukan
+     * @param floatingTexts koleksi teks mengambang yang ditampilkan di layar
+     * @param pocketHistory daftar riwayat nomor bola yang masuk (urutan)
+     * @param is8BallMode true jika mode permainan adalah 8-ball
+     * @param prefs `Preferences` untuk menyimpan/ambil high score
      */
     public GameController(List<GameObject> gameObjects, CueStick cueStick, CueBall cueBall,
                          GameRules gameRules, PhysicsEngine physicsEngine,
@@ -93,7 +114,10 @@ public class GameController {
     }
     
     /**
-     * Set callbacks for actions that need to affect external state
+     * Set callbacks that the controller will call for UI actions (respawn rack, game-over overlays).
+     *
+     * @param onRespawnRack runnable to respawn the rack when requested
+     * @param onGameOver callback to show/hide game-over overlay
      */
     public void setCallbacks(Runnable onRespawnRack, GameOverCallback onGameOver) {
         this.onRespawnRack = onRespawnRack;
@@ -101,7 +125,13 @@ public class GameController {
     }
     
     /**
-     * Update game state (called every frame, but paused flag checked internally)
+     * Update the game controller each frame: runs physics, timers, and turn processing.
+     * Skips most logic when `isGamePaused` is true.
+     *
+     * @param deltaTime seconds since last frame
+     * @param isGamePaused whether the game is currently paused
+     * @param currentOffsetX current UI offset X for coordinate mapping
+     * @param currentOffsetY current UI offset Y for coordinate mapping
      */
     public void update(double deltaTime, boolean isGamePaused, double currentOffsetX, double currentOffsetY) {
         this.isGamePaused = isGamePaused;
@@ -385,42 +415,92 @@ public class GameController {
     
     // ==================== GETTERS & SETTERS ====================
     
+    /**
+     * Ambil sisa waktu arcade (detik).
+     *
+     * @return sisa arcade time
+     */
     public double getArcadeTimer() {
         return arcadeTimer;
     }
-    
+
+    /**
+     * Set sisa waktu arcade (detik).
+     *
+     * @param arcadeTimer jumlah detik baru
+     */
     public void setArcadeTimer(double arcadeTimer) {
         this.arcadeTimer = arcadeTimer;
     }
-    
+
+    /**
+     * Ambil sisa waktu giliran saat ini (8-ball mode).
+     *
+     * @return detik tersisa untuk giliran
+     */
     public double getCurrentTurnTime() {
         return currentTurnTime;
     }
-    
+
+    /**
+     * Atur waktu giliran saat ini (detik).
+     *
+     * @param currentTurnTime detik baru untuk giliran
+     */
     public void setCurrentTurnTime(double currentTurnTime) {
         this.currentTurnTime = currentTurnTime;
     }
-    
+
+    /**
+     * Ambil high score yang tersimpan.
+     *
+     * @return nilai high score
+     */
     public int getHighScore() {
         return highScore;
     }
-    
+
+    /**
+     * Set high score secara manual.
+     *
+     * @param highScore nilai high score baru
+     */
     public void setHighScore(int highScore) {
         this.highScore = highScore;
     }
-    
+
+    /**
+     * Apakah permainan arcade telah selesai (waktu habis).
+     *
+     * @return true jika arcade game over
+     */
     public boolean isArcadeGameOver() {
         return isArcadeGameOver;
     }
-    
+
+    /**
+     * Tandai status arcade game over.
+     *
+     * @param arcadeGameOver true untuk menandai game over
+     */
     public void setArcadeGameOver(boolean arcadeGameOver) {
         this.isArcadeGameOver = arcadeGameOver;
     }
-    
+
+    /**
+     * Periksa apakah giliran saat ini sedang berlangsung.
+     *
+     * @return true jika ada bola yang masih bergerak sejak pukulan terakhir
+     */
     public boolean isTurnInProgress() {
         return turnInProgress;
     }
-    
+
+    /**
+     * Set flag turnInProgress (untuk kontrol eksternal/tests).
+     *
+     * @param turnInProgress true jika giliran sedang berlangsung
+     */
     public void setTurnInProgress(boolean turnInProgress) {
         this.turnInProgress = turnInProgress;
     }

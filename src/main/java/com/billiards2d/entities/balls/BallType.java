@@ -10,9 +10,14 @@ package com.billiards2d.entities.balls;
  * @since 2025-12-13
  */
 public enum BallType {
-    CUE,        // Bola Putih
-    SOLID,      // Bola 1-7 (Warna Penuh)
-    STRIPE,     // Bola 9-15 (Garis Putih)
-    EIGHT_BALL, // Bola 8 (Hitam - Penentu Kemenangan/Kekalahan)
-    UNKNOWN     // Default/Error
+    /** Bola putih (cue ball). */
+    CUE,
+    /** Bola solid (1-7). */
+    SOLID,
+    /** Bola stripe (9-15). */
+    STRIPE,
+    /** Bola 8, penentu kemenangan/kekalahan. */
+    EIGHT_BALL,
+    /** Tipe tidak diketahui / fallback. */
+    UNKNOWN
 }

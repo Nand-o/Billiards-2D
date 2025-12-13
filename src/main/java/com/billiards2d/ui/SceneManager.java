@@ -52,13 +52,24 @@ public class SceneManager {
     /**
      * Constructor for SceneManager
      */
+    /**
+     * Constructor for SceneManager.
+     *
+     * @param primaryStage utama `Stage` dari aplikasi
+     * @param prefs `Preferences` untuk menyimpan konfigurasi seperti high score
+     */
     public SceneManager(Stage primaryStage, Preferences prefs) {
         this.primaryStage = primaryStage;
         this.prefs = prefs;
     }
     
     /**
-     * Set callbacks for actions that need to trigger from menu/overlays
+     * Set callbacks used by menu/overlays to communicate with game logic.
+     *
+     * @param onStartGame callback accepting a boolean: true for 8-ball, false for arcade
+     * @param onRestartGame callback to restart the current game
+     * @param onReturnToMenu callback to return to main menu
+     * @param onTogglePause callback to toggle pause state
      */
     public void setCallbacks(java.util.function.Consumer<Boolean> onStartGame, Runnable onRestartGame, Runnable onReturnToMenu, Runnable onTogglePause) {
         this.onStartGame = onStartGame;
@@ -68,7 +79,9 @@ public class SceneManager {
     }
     
     /**
-     * Create and show the main menu scene
+     * Create and display the main menu scene. Stops the provided game loop if non-null.
+     *
+     * @param currentGameLoop the currently running AnimationTimer for the game; may be null
      */
     public void showMainMenu(AnimationTimer currentGameLoop) {
         // Stop current game loop if running
@@ -204,7 +217,9 @@ public class SceneManager {
     }
     
     /**
-     * Create pause overlay
+     * Create the pause overlay UI component.
+     *
+     * @return a VBox that can be added as an overlay and toggled visible when paused
      */
     public VBox createPauseOverlay() {
         VBox overlay = new VBox(25);
@@ -238,7 +253,9 @@ public class SceneManager {
     }
     
     /**
-     * Create game over overlay
+     * Create the game-over overlay components including title and message nodes.
+     *
+     * @return a GameOverComponents DTO containing overlay nodes
      */
     public GameOverComponents createGameOverOverlay() {
         VBox overlay = new VBox(20);
@@ -361,10 +378,22 @@ public class SceneManager {
      * DTO class to return game over overlay components
      */
     public static class GameOverComponents {
+        /** Overlay container yang menutup canvas saat game over. */
         public final VBox overlay;
+
+        /** Judul overlay (mis. "YOU WIN!" / "GAME OVER"). */
         public final Text title;
+
+        /** Pesan tambahan atau detail skor pada overlay. */
         public final Text message;
         
+        /**
+         * Buat DTO overlay game-over.
+         *
+         * @param overlay container overlay yang akan ditampilkan
+         * @param title node teks judul overlay
+         * @param message node teks pesan detail / skor
+         */
         public GameOverComponents(VBox overlay, Text title, Text message) {
             this.overlay = overlay;
             this.title = title;

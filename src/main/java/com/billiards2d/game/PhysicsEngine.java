@@ -40,35 +40,71 @@ public class PhysicsEngine implements GameObject {
     private boolean cueBallPocketed = false;
     private Ball firstHitBall = null;
 
+    /**
+     * Konstruktor untuk `PhysicsEngine`.
+     *
+     * @param table referensi ke meja permainan
+     * @param gameObjects daftar objek permainan yang akan disimulasikan (biasanya semua bola)
+     */
     public PhysicsEngine(Table table, List<GameObject> gameObjects) {
         this.table = table;
         this.gameObjects = gameObjects;
     }
 
     // Getter untuk BilliardApp mengambil data laporan
+    /**
+     * Ambil salinan list bola yang ter-pocket selama pukulan terakhir.
+     *
+     * @return list baru berisi `ObjectBall` yang ter-pocket pada turn terakhir
+     */
     public List<ObjectBall> getPocketedBalls() {
         return new ArrayList<>(pocketedBalls);
     }
 
+    /**
+     * Apakah bola putih (cue ball) ter-pocket pada pukulan terakhir.
+     *
+     * @return true jika cue ball ter-pocket
+     */
     public boolean isCueBallPocketed() {
         return cueBallPocketed;
     }
 
     // Getter untuk GameRules
+    /**
+     * Bola pertama yang tersentuh oleh cue ball pada pukulan terakhir.
+     * Digunakan untuk validasi aturan first-hit.
+     *
+     * @return instansi `Ball` yang pertama tersentuh, atau null jika tidak ada
+     */
     public Ball getFirstHitBall() {
         return firstHitBall;
     }
 
+    /**
+     * Reset laporan turn (pocketedBalls, cueBallPocketed, firstHitBall).
+     * Dipanggil saat memulai turn baru.
+     */
     public void resetTurnReport() {
         pocketedBalls.clear();
         cueBallPocketed = false;
         firstHitBall = null; // Reset setiap awal turn
     }
 
+    /**
+     * Ambil skor sementara untuk mode Arcade.
+     *
+     * @return nilai skor arcade saat ini
+     */
     public int getArcadeScore() {
         return arcadeScore;
     }
 
+    /**
+     * Update simulasi fisika untuk semua bola (dipanggil per frame).
+     *
+     * @param deltaTime waktu sejak frame terakhir (detik)
+     */
     @Override
     public void update(double deltaTime) {
         for (GameObject obj1 : gameObjects) {
@@ -187,7 +223,9 @@ public class PhysicsEngine implements GameObject {
 
     /**
      * Mengubah skor arcade secara manual (bisa plus atau minus).
-     * Berguna untuk penalti foul.
+     * Berguna untuk penalti foul atau bonus.
+     *
+     * @param amount jumlah perubahan skor (positif/negatif)
      */
     public void modifyArcadeScore(int amount) {
         this.arcadeScore += amount;
@@ -197,6 +235,8 @@ public class PhysicsEngine implements GameObject {
 
     /**
      * DEBUG FEATURE: Memaksa bola masuk ke dalam laporan (Cheat).
+     *
+     * @param ball bola yang akan ditandai sebagai ter-pocketed
      */
     public void forcePocketBall(ObjectBall ball) {
         if (!pocketedBalls.contains(ball)) {
@@ -205,4 +245,12 @@ public class PhysicsEngine implements GameObject {
             arcadeScore += 10;
         }
     }
+
+    /**
+     * Konstruktor PhysicsEngine.
+     *
+     * @param table referensi ke meja permainan
+     * @param gameObjects daftar objek permainan yang disimulasikan
+     */
+    // Note: constructor JavaDoc placed near top for readability
 }

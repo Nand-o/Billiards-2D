@@ -21,6 +21,14 @@ public class FloatingText {
     private double lifeTime; // Durasi hidup (detik)
     private double maxLife;
 
+    /**
+     * Buat FloatingText baru yang muncul di posisi (x,y) dan mengapung ke atas.
+     *
+     * @param x koordinat X awal teks
+     * @param y koordinat Y awal teks
+     * @param text isi teks yang ditampilkan
+     * @param color warna teks
+     */
     public FloatingText(double x, double y, String text, Color color) {
         this.x = x;
         this.y = y;
@@ -30,12 +38,23 @@ public class FloatingText {
         this.lifeTime = maxLife;
     }
 
+    /**
+     * Perbarui posisi dan umur teks.
+     *
+     * @param deltaTime waktu sejak frame terakhir (detik)
+     * @return true jika teks sudah kedaluwarsa dan harus dihapus
+     */
     public boolean update(double deltaTime) {
         lifeTime -= deltaTime;
         y -= FLOATING_TEXT_RISE_SPEED * deltaTime; // Gerak ke atas pelan-pelan
         return lifeTime <= 0; // Return true jika sudah mati (harus dihapus)
     }
 
+    /**
+     * Gambar teks yang mengapung ke layar dengan efek fade-out.
+     *
+     * @param gc konteks grafis JavaFX untuk menggambar
+     */
     public void draw(GraphicsContext gc) {
         double alpha = lifeTime / maxLife; // Efek memudar (Fade out)
         // Clamp alpha biar gak error

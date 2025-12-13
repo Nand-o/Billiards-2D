@@ -20,21 +20,38 @@ public class GameRules {
 
     // --- ENUMS UNTUK STATUS ---
 
+    /**
+     * Enum yang merepresentasikan giliran pemain.
+     */
     public enum PlayerTurn {
+        /** Giliran pemain 1. */
         PLAYER_1,
+        /** Giliran pemain 2. */
         PLAYER_2
     }
 
+    /**
+     * Status kepemilikan meja: OPEN atau sudah ditetapkan siapa Solid/Stripes.
+     */
     public enum TableState {
-        OPEN,           // Belum ditentukan siapa Solid/Stripes
-        P1_SOLID,       // Player 1 = Solid, Player 2 = Stripes
-        P1_STRIPES      // Player 1 = Stripes, Player 2 = Solid
+        /** Meja masih OPEN (belum ditentukan solid/stripes). */
+        OPEN,
+        /** Player 1 memiliki kategori Solid (Player 2 = Stripes). */
+        P1_SOLID,
+        /** Player 1 memiliki kategori Stripes (Player 2 = Solid). */
+        P1_STRIPES
     }
 
+    /**
+     * Status akhir permainan (atau berjalan).
+     */
     public enum GameStatus {
-        ONGOING,        // Permainan berjalan
-        P1_WINS,        // Player 1 Menang
-        P2_WINS         // Player 2 Menang
+        /** Permainan sedang berlangsung. */
+        ONGOING,
+        /** Player 1 menang. */
+        P1_WINS,
+        /** Player 2 menang. */
+        P2_WINS
     }
 
     // --- STATE VARIABLES ---
@@ -49,10 +66,16 @@ public class GameRules {
     private boolean isBallInHand = false;
     private boolean cleanWin = false;
 
+    /**
+     * Buat instance GameRules dan reset state ke awal permainan.
+     */
     public GameRules() {
         resetGame();
     }
 
+    /**
+     * Reset seluruh state aturan permainan ke nilai awal.
+     */
     public void resetGame() {
         currentTurn = PlayerTurn.PLAYER_1;
         tableState = TableState.OPEN;
@@ -67,9 +90,10 @@ public class GameRules {
      * Method ini dipanggil setiap kali semua bola berhenti bergerak.
      * Menerima laporan bola apa saja yang masuk lubang untuk menentukan nasib giliran selanjutnya.
      *
-     * @param pocketedBalls List bola objektif (warna) yang masuk lubang.
-     * @param cueBallPocketed Apakah bola putih masuk lubang (Foul).
-     * @param remainingBalls List semua bola yang MASIH ADA di meja (untuk cek sisa bola).
+    * @param pocketedBalls List bola objektif (warna) yang masuk lubang.
+    * @param cueBallPocketed Apakah bola putih masuk lubang (Foul).
+    * @param remainingBalls List semua bola yang MASIH ADA di meja (untuk cek sisa bola).
+    * @param firstHitBall bola pertama yang terkena oleh cue (untuk validasi first-hit rules)
      */
     public void processTurn(List<ObjectBall> pocketedBalls,
                             boolean cueBallPocketed,
@@ -204,12 +228,19 @@ public class GameRules {
         isBallInHand = true;
     }
 
-    // Method untuk mematikan status Ball in Hand setelah bola ditaruh
+    /**
+     * Matikan status "ball in hand" setelah pemain meletakkan bola di meja.
+     */
     public void clearBallInHand() {
         isBallInHand = false;
         statusMessage = "Ball Placed. Good Luck!";
     }
 
+    /**
+     * Apakah saat ini pemain berhak menempatkan bola secara manual (ball-in-hand).
+     *
+     * @return true jika ball-in-hand aktif, false jika tidak
+     */
     public boolean isBallInHand() {
         return isBallInHand;
     }
@@ -249,6 +280,11 @@ public class GameRules {
     }
 
     // Getter Baru
+    /**
+     * Indikator apakah kemenangan terjadi secara "clean" (bukan karena kesalahan lawan).
+     *
+     * @return true jika menang bersih, false jika karena blunder lawan
+     */
     public boolean isCleanWin() {
         return cleanWin;
     }
@@ -287,6 +323,13 @@ public class GameRules {
     /**
      * Helper untuk mengecek target yang sah.
      * UPDATE: Sekarang menerima list sisa bola untuk mengecek apakah grup sudah habis.
+     */
+    /**
+     * Mengecek apakah jenis bola yang dibidik sah menurut aturan saat ini.
+     *
+     * @param targetType jenis bola yang menjadi target (mis. SOLID/STRIPE/EIGHT_BALL)
+     * @param remainingBalls list bola yang masih ada di meja
+     * @return true jika target sah, false jika tidak
      */
     public boolean isValidTarget(BallType targetType, List<Ball> remainingBalls) {
         if (targetType == BallType.CUE) return false;
@@ -349,14 +392,46 @@ public class GameRules {
         return BallType.UNKNOWN;
     }
 
+    /**
+     * Trigger foul akibat batas waktu bermain terlampaui.
+     */
     public void triggerTimeFoul() {
         handleFoul("FOUL! Time Limit.");
     }
 
     // --- GETTERS ---
+    /**
+     * Ambil giliran pemain saat ini.
+     *
+     * @return giliran pemain saat ini
+     */
     public PlayerTurn getCurrentTurn() { return currentTurn; }
+
+    /**
+     * Ambil pesan status singkat yang dapat ditampilkan di HUD.
+     *
+     * @return pesan status singkat
+     */
     public String getStatusMessage() { return statusMessage; }
+
+    /**
+     * Ambil status permainan saat ini.
+     *
+     * @return status permainan (ONGOING/P1_WINS/P2_WINS)
+     */
     public GameStatus getGameStatus() { return gameStatus; }
+
+    /**
+     * Apakah permainan telah selesai.
+     *
+     * @return true jika permainan sudah selesai, false jika masih berlangsung
+     */
     public boolean isGameOver() { return gameStatus != GameStatus.ONGOING; }
+
+    /**
+     * Ambil state meja saat ini (OPEN atau sudah ditetapkan kategori pemain).
+     *
+     * @return state meja saat ini (OPEN/P1_SOLID/P1_STRIPES)
+     */
     public TableState getTableState() { return tableState; }
 }

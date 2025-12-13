@@ -53,19 +53,39 @@ public class CueBall extends Ball {
     }
 
     // --- Getter & Setter untuk pendingRespawn ---
+    /**
+     * Apakah bola putih sedang menunggu respawn (setelah masuk lubang).
+     *
+     * @return true jika menunggu respawn
+     */
     public boolean isPendingRespawn() {
         return pendingRespawn;
     }
 
+    /**
+     * Set flag pending respawn untuk bola putih.
+     *
+     * @param pendingRespawn true jika bola belum boleh muncul kembali
+     */
     public void setPendingRespawn(boolean pendingRespawn) {
         this.pendingRespawn = pendingRespawn;
     }
 
+    /**
+     * Ambil tipe bola (CUE untuk bola putih).
+     *
+     * @return tipe bola
+     */
     public BallType getType() {
         return type;
     }
 
     // --- Override method draw ---
+    /**
+     * Gambar bola putih (override): menghormati flag pendingRespawn.
+     *
+     * @param gc konteks grafis
+     */
     @Override
     public void draw(GraphicsContext gc) {
         // Jika bola sedang dalam status "pending respawn" (mati sementara), jangan gambar apapun.
