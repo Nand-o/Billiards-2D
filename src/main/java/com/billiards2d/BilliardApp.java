@@ -88,6 +88,9 @@ public class BilliardApp extends Application {
     // --- RENDERING ---
     private GameUIRenderer gameUIRenderer;
     private HUDRenderer hudRenderer;
+    
+    // --- INPUT HANDLING ---
+    private InputHandler inputHandler;
 
     // --- SCENE MANAGEMENT ---
     private Stage primaryStage;
@@ -427,66 +430,48 @@ public class BilliardApp extends Application {
         // Layer 2 & 3: Menu (Default Hidden)
         root.getChildren().addAll(pauseOverlay, gameOverOverlay);
 
-        // 5. INPUT HANDLING
-        // Mouse Handling (Logic Game)
+        // 5. Init Objects
+        gameRules = new GameRules();
+        initializeGameObjects();
+        
+        // 6. Setup InputHandler
+        inputHandler = new InputHandler(cueStick, cueBall, gameRules, gameObjects, is8BallMode);
+        inputHandler.setCallbacks(
+            this::togglePause,
+            this::debugClearTable
+        );
+        
+        // 7. INPUT HANDLING - Delegate to InputHandler
         canvas.setOnMouseMoved(e -> {
-            if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
             updateOffsets();
-            double logicX = e.getX() - currentOffsetX;
-            double logicY = e.getY() - currentOffsetY;
-
-            if (isBallInHandActive()) moveCueBallToMouse(logicX, logicY);
-            else cueStick.handleMouseMoved(logicX, logicY);
+            inputHandler.updateState(isGamePaused, isArcadeGameOver, currentOffsetX, currentOffsetY);
+            inputHandler.handleMouseMoved(e);
         });
 
         canvas.setOnMousePressed(e -> {
             updateOffsets();
-            // Cek Tombol Pause di Pojok Kiri Atas
-            if (e.getX() >= PAUSE_BTN_X && e.getX() <= PAUSE_BTN_X + PAUSE_BTN_SIZE &&
-                    e.getY() >= PAUSE_BTN_Y && e.getY() <= PAUSE_BTN_Y + PAUSE_BTN_SIZE) {
-
-                togglePause(); // Method baru
-                return;
-            }
-
-            if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
-
-            double logicX = e.getX() - currentOffsetX;
-            double logicY = e.getY() - currentOffsetY;
-
-            if (isBallInHandActive()) tryPlaceCueBall(logicX, logicY);
-            else cueStick.handleMousePressed(logicX, logicY);
+            inputHandler.updateState(isGamePaused, isArcadeGameOver, currentOffsetX, currentOffsetY);
+            inputHandler.handleMousePressed(e);
         });
 
         canvas.setOnMouseDragged(e -> {
-            if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
             updateOffsets();
-            double logicX = e.getX() - currentOffsetX;
-            double logicY = e.getY() - currentOffsetY;
-
-            if (isBallInHandActive()) moveCueBallToMouse(logicX, logicY);
-            else cueStick.handleMouseDragged(logicX, logicY);
+            inputHandler.updateState(isGamePaused, isArcadeGameOver, currentOffsetX, currentOffsetY);
+            inputHandler.handleMouseDragged(e);
         });
 
         canvas.setOnMouseReleased(e -> {
-            if (isGamePaused || isArcadeGameOver || gameRules.isGameOver()) return;
             updateOffsets();
-            if (!isBallInHandActive()) cueStick.handleMouseReleased(e.getX() - currentOffsetX, e.getY() - currentOffsetY);
+            inputHandler.updateState(isGamePaused, isArcadeGameOver, currentOffsetX, currentOffsetY);
+            inputHandler.handleMouseReleased(e);
         });
 
-        // 6. Init Objects
-        gameRules = new GameRules();
-        initializeGameObjects();
-
-        // 7. Setup Scene & Keyboard
+        // 8. Setup Scene & Keyboard
         Scene gameScene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
         gameScene.setFill(Color.BLACK); // Background hitam di belakang canvas
 
         gameScene.setOnKeyPressed(event -> {
-            switch (event.getCode()) {
-                case ESCAPE: togglePause(); break; // ESC sekarang toggle pause menu
-                case C: if (!is8BallMode) debugClearTable(); break;
-            }
+            inputHandler.handleKeyPressed(event);
         });
 
         // Binding Resizing
@@ -531,52 +516,24 @@ public class BilliardApp extends Application {
         }
 
         if (anyBallRemoved) {
-            // 3. Paksa Turn Logic berjalan
-            // Kita set turnInProgress = true, supaya di update loop berikutnya
-            // dia mendeteksi bola diam -> lalu panggil processTurnEnd() -> lalu deteksi Table Cleared.
-            turnInProgress = true;
+            // 3. Reset cue ball ke posisi awal
+            cueBall.setPosition(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0));
+            cueBall.setVelocity(new Vector2D(0, 0));
+            
+            // 4. Spawn rack baru
+            respawnArcadeRack();
+            
+            // 5. Reset turn state agar cue stick bisa digunakan
+            turnInProgress = false;
         }
     }
 
     // --- HELPER METHODS UNTUK BALL IN HAND ---
 
-    private boolean isBallInHandActive() {
-        return is8BallMode && gameRules.isBallInHand();
-    }
-
-    private void moveCueBallToMouse(double x, double y) {
-        // Clamp agar tidak keluar meja
-        double r = cueBall.getRadius();
-        if (x < r) x = r;
-        if (x > GAME_WIDTH - r) x = GAME_WIDTH - r;
-        if (y < r) y = r;
-        if (y > GAME_HEIGHT - r) y = GAME_HEIGHT - r;
-
-        cueBall.setPosition(new Vector2D(x, y));
-        cueBall.setVelocity(new Vector2D(0, 0)); // Pastikan diam
-    }
-
-    private void tryPlaceCueBall(double x, double y) {
-        // Cek apakah posisi valid (tidak menumpuk bola lain)
-        boolean overlap = false;
-        for (GameObject obj : gameObjects) {
-            if (obj instanceof Ball && obj != cueBall) {
-                Ball other = (Ball) obj;
-                if (!other.isActive()) continue; // Abaikan bola yang sudah masuk
-
-                double dist = cueBall.getPosition().subtract(other.getPosition()).length();
-                if (dist < (cueBall.getRadius() + other.getRadius() + 2)) { // +2 buffer
-                    overlap = true;
-                    break;
-                }
-            }
-        }
-
-        if (!overlap) {
-            // Posisi Valid -> Taruh Bola, Matikan Mode Ball in Hand
-            gameRules.clearBallInHand();
-        }
-    }
+    // ==================== OLD INPUT METHODS REMOVED ====================
+    // The following methods have been extracted to InputHandler.java:
+    // - isBallInHandActive(), moveCueBallToMouse(), tryPlaceCueBall()
+    // =======================================================================
 
     private void updateOffsets() {
         double screenW = canvas.getWidth();
@@ -698,7 +655,7 @@ public class BilliardApp extends Application {
 
             // 1. UPDATE FISIKA
             // Hanya update fisika jika TIDAK sedang menaruh bola (biar ga gerak2 sendiri)
-            if (!isBallInHandActive()) {
+            if (!(is8BallMode && gameRules.isBallInHand())) {
                 int subSteps = 4;
                 double subDeltaTime = deltaTime / subSteps;
                 for (int step = 0; step < subSteps; step++) {
@@ -974,7 +931,7 @@ public class BilliardApp extends Application {
             }
 
             // Stik HANYA digambar jika TIDAK sedang Ball In Hand
-            if (!isBallInHandActive()) {
+            if (!(is8BallMode && gameRules.isBallInHand())) {
                 cueStick.draw(mainGC);
             } else {
                 // Visual Bantuan saat Dragging
@@ -1141,6 +1098,11 @@ public class BilliardApp extends Application {
         // Update Stick
         this.cueStick = new CueStick(cueBall, allBallsForStick, GAME_WIDTH, GAME_HEIGHT, gameRules, cueStickImage);
         this.cueStick.setArcadeMode(true); // Jangan lupa set mode lagi
+        
+        // Update InputHandler dengan cueStick baru
+        if (inputHandler != null) {
+            inputHandler.setCueStick(this.cueStick);
+        }
 
         // 5. Reset Posisi Cue Ball ke Head String (Biar adil)
         cueBall.setPosition(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0));
