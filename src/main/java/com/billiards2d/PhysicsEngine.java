@@ -141,10 +141,8 @@ public class PhysicsEngine implements GameObject {
         if (firstHitBall == null) {
             if (b1 instanceof CueBall && b2 instanceof ObjectBall) {
                 firstHitBall = b2;
-                // System.out.println("First Hit: " + ((ObjectBall)b2).getType()); // Debug
             } else if (b2 instanceof CueBall && b1 instanceof ObjectBall) {
                 firstHitBall = b1;
-                // System.out.println("First Hit: " + ((ObjectBall)b1).getType()); // Debug
             }
         }
 
@@ -176,8 +174,6 @@ public class PhysicsEngine implements GameObject {
         // Opsional: Cegah skor negatif
         if (this.arcadeScore < 0) this.arcadeScore = 0;
     }
-
-    // ... (Method lainnya) ...
 
     /**
      * DEBUG FEATURE: Memaksa bola masuk ke dalam laporan (Cheat).

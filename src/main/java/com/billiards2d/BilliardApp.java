@@ -5,7 +5,6 @@ import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -69,9 +68,6 @@ public class BilliardApp extends Application {
     // Flag untuk menandai apakah sebuah giliran (tembakan) sedang berlangsung
     // Digunakan agar logika Rules hanya dipanggil SATU KALI setelah bola berhenti.
     private boolean turnInProgress = false;
-
-    // Debug Info Mouse
-    private double mouseLogicX, mouseLogicY;
 
     // --- NEW UI OVERLAYS ---
     private javafx.scene.layout.VBox pauseOverlay;
@@ -138,7 +134,6 @@ public class BilliardApp extends Application {
             // 2. LOAD SCORE LAMA (Ini yang bikin Best Score kamu 0 terus sebelumnya)
             // Ambil data "arcade_highscore", kalau tidak ada, isi dengan 0
             highScore = prefs.getInt("arcade_highscore", 0);
-            System.out.println("High Score Loaded: " + highScore); // Debug check
 
         } catch (Exception e) {
             System.err.println("Gagal load preferences: " + e.getMessage());
@@ -180,8 +175,6 @@ public class BilliardApp extends Application {
 
         // 4. Reset Rules (Jika main 8-Ball)
         gameRules.resetGame();
-
-        System.out.println("Game Restarted!");
     }
 
     /**
@@ -300,7 +293,7 @@ public class BilliardApp extends Application {
         creditText.setEffect(new DropShadow(2, Color.BLACK));
 
         Text copyText = new Text("© 2025 BILLIARD2D PROJECT. CREATED WITH JAVAFX.");
-        copyText.setFont(loadCustomFont("PixelOperator.ttf", 14, "Consolas"));
+        copyText.setFont(loadCustomFont("PixelOperator-Bold.ttf", 12, "Consolas"));
         copyText.setFill(Color.WHITE);
 
         bottomBox.getChildren().addAll(creditText, copyText);
@@ -546,8 +539,6 @@ public class BilliardApp extends Application {
      * DEBUG: Membersihkan meja secara instan untuk mengetes logika Stage Clear.
      */
     private void debugClearTable() {
-        System.out.println("DEBUG: Clearing Table...");
-
         boolean anyBallRemoved = false;
 
         for (GameObject obj : gameObjects) {
@@ -611,9 +602,6 @@ public class BilliardApp extends Application {
         if (!overlap) {
             // Posisi Valid -> Taruh Bola, Matikan Mode Ball in Hand
             gameRules.clearBallInHand();
-        } else {
-            // Feedback Suara atau Visual (Optional)
-            System.out.println("Cannot place here! Overlap.");
         }
     }
 
@@ -816,7 +804,6 @@ public class BilliardApp extends Application {
                     cueBall.setVelocity(new Vector2D(0, 0));
                     cueBall.setPendingRespawn(false); // Matikan flag
                     cueBall.setActive(true);          // Munculkan bola
-                    System.out.println("Cue Ball Respawned!"); // Debug check
                 }
             }
 

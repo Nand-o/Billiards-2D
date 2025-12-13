@@ -1,7 +1,6 @@
 package com.billiards2d;
 
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import java.util.List;
 import javafx.scene.image.Image;
@@ -205,7 +204,6 @@ public class CueStick implements GameObject {
 
         // Prediksi Lanjutan (Hanya gambar jika shot valid, biar ga menuhin layar pas salah)
         if (targetBall != null && isValidShot) {
-            // ... (Kode visual prediksi pantulan yang lama tetap di sini) ...
             Vector2D collisionNormal = targetBall.getPosition().subtract(hitPoint).normalize();
             Vector2D tangent = new Vector2D(-collisionNormal.getY(), collisionNormal.getX());
             if (dir.dot(tangent) < 0) tangent = tangent.multiply(-1);
@@ -332,14 +330,8 @@ public class CueStick implements GameObject {
     public void handleMouseReleased(double x, double y) {
         if (!isAiming) return;
 
-        // Logika release tetap sama... (Code tidak berubah)
-        // ... (copy paste logika release yang lama) ...
-        // ...
-
         // Pastikan aimCurrent diupdate terakhir
         aimCurrent = new Vector2D(x, y);
-
-        // ... (Lanjutkan logika hitung force & hit bola) ...
 
         double dragDist = aimStart.subtract(aimCurrent).length();
         if (dragDist > MAX_DRAG_DISTANCE) dragDist = MAX_DRAG_DISTANCE;
