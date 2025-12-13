@@ -1,5 +1,7 @@
 package com.billiards2d;
 
+import static com.billiards2d.GameConstants.*;
+
 import javafx.scene.paint.Color;
 import javafx.scene.canvas.GraphicsContext;
 
@@ -29,8 +31,8 @@ public class CueBall extends Ball {
      */
     public CueBall(Vector2D position) {
         // Memanggil konstruktor superclass (Ball)
-        // Warna di-hardcode ke Color.WHITE dan radius ke 10.0
-        super(position, Color.WHITE, 13.0);
+        // Warna di-hardcode ke Color.WHITE dan radius
+        super(position, Color.WHITE, BALL_RADIUS);
     }
 
     /**

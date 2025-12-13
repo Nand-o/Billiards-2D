@@ -1,5 +1,7 @@
 package com.billiards2d;
 
+import static com.billiards2d.GameConstants.*;
+
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
@@ -21,9 +23,6 @@ public abstract class Ball implements GameObject {
     // Gambar sprite sheet dimuat sekali untuk semua instance bola (static)
     protected static Image ballSpriteSheet;
 
-    // Ukuran bola di file gambar (Sprite asli 16x16 pixel)
-    protected static final double SPRITE_SIZE = 16.0;
-
     public Ball(Vector2D position, Color color, double radius) {
         this.position = position;
         this.velocity = new Vector2D(0, 0);
@@ -34,7 +33,7 @@ public abstract class Ball implements GameObject {
         // Load Gambar jika belum ada
         if (ballSpriteSheet == null) {
             try {
-                ballSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+                ballSpriteSheet = new Image(getClass().getResourceAsStream(ASSET_BALL_SPRITE));
             } catch (Exception e) {
                 System.err.println("Gagal load sprite bola: " + e.getMessage());
             }
@@ -44,9 +43,9 @@ public abstract class Ball implements GameObject {
     @Override
     public void update(double deltaTime) {
         position = position.add(velocity.multiply(deltaTime));
-        double frictionFactor = Math.pow(0.992, deltaTime * 60.0);
+        double frictionFactor = Math.pow(FRICTION_POWER, deltaTime * 60.0);
         velocity = velocity.multiply(frictionFactor);
-        if (velocity.length() < 5) velocity = new Vector2D(0, 0);
+        if (velocity.length() < VELOCITY_STOP_THRESHOLD) velocity = new Vector2D(0, 0);
     }
 
     /**
@@ -69,22 +68,21 @@ public abstract class Ball implements GameObject {
 
         if (this instanceof CueBall) {
             // Bola Putih ada di Baris 2 (Y=16), Kolom ke-8 (Index 7)
-            // Koordinat X = 7 * 16 = 112
-            srcX = 112;
-            srcY = 16;
+            srcX = CUE_BALL_SPRITE_X;
+            srcY = CUE_BALL_SPRITE_Y;
         }
         else if (this instanceof ObjectBall) {
             int num = ((ObjectBall) this).getNumber();
 
             if (num >= 1 && num <= 8) {
                 // Bola 1-8 (Solid) ada di Baris 1 (Y=0)
-                srcX = (num - 1) * SPRITE_SIZE;
+                srcX = (num - 1) * BALL_SPRITE_SIZE;
                 srcY = 0;
             } else if (num >= 9 && num <= 15) {
                 // Bola 9-15 (Stripes) ada di Baris 2 (Y=16)
                 // Bola 9 ada di kolom 0 -> (9-9)*16 = 0
-                srcX = (num - 9) * SPRITE_SIZE;
-                srcY = 16;
+                srcX = (num - 9) * BALL_SPRITE_SIZE;
+                srcY = BALL_SPRITE_SIZE;
             }
         }
 
@@ -98,7 +96,7 @@ public abstract class Ball implements GameObject {
         double destY = position.getY() - radius;
 
         gc.drawImage(ballSpriteSheet,
-                srcX, srcY, SPRITE_SIZE, SPRITE_SIZE, // Source (Crop)
+                srcX, srcY, BALL_SPRITE_SIZE, BALL_SPRITE_SIZE, // Source (Crop)
                 destX, destY, destW, destH);          // Destination (Screen)
     }
 

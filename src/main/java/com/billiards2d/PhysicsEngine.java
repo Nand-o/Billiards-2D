@@ -1,5 +1,7 @@
 package com.billiards2d;
 
+import static com.billiards2d.GameConstants.*;
+
 import javafx.scene.canvas.GraphicsContext;
 import java.util.ArrayList;
 import java.util.List;
@@ -111,18 +113,17 @@ public class PhysicsEngine implements GameObject {
         double vx = ball.getVelocity().getX();
         double vy = ball.getVelocity().getY();
         boolean collided = false;
-        double wallRestitution = 0.9;
 
         if (x - r < table.getWidth() && x - r < 0) { // Cek batas kiri (0)
-            x = r; vx = -vx * wallRestitution; collided = true;
+            x = r; vx = -vx * WALL_RESTITUTION; collided = true;
         } else if (x + r > table.getWidth()) {
-            x = table.getWidth() - r; vx = -vx * wallRestitution; collided = true;
+            x = table.getWidth() - r; vx = -vx * WALL_RESTITUTION; collided = true;
         }
 
         if (y - r < table.getHeight() && y - r < 0) { // Cek batas atas (0)
-            y = r; vy = -vy * wallRestitution; collided = true;
+            y = r; vy = -vy * WALL_RESTITUTION; collided = true;
         } else if (y + r > table.getHeight()) {
-            y = table.getHeight() - r; vy = -vy * wallRestitution; collided = true;
+            y = table.getHeight() - r; vy = -vy * WALL_RESTITUTION; collided = true;
         }
 
         if (collided) {
@@ -159,10 +160,9 @@ public class PhysicsEngine implements GameObject {
         if (speed >= 0) return;
 
         double impulse = 2 * speed / (b1.getMass() + b2.getMass());
-        double restitution = 0.9;
 
-        b1.setVelocity(b1.getVelocity().subtract(normalVector.multiply(impulse * b2.getMass())).multiply(restitution));
-        b2.setVelocity(b2.getVelocity().add(normalVector.multiply(impulse * b1.getMass())).multiply(restitution));
+        b1.setVelocity(b1.getVelocity().subtract(normalVector.multiply(impulse * b2.getMass())).multiply(BALL_RESTITUTION));
+        b2.setVelocity(b2.getVelocity().add(normalVector.multiply(impulse * b1.getMass())).multiply(BALL_RESTITUTION));
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.billiards2d;
 
+import static com.billiards2d.GameConstants.*;
+
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.scene.Scene;
@@ -31,17 +33,6 @@ import javafx.scene.layout.Region;
 import javafx.scene.paint.LinearGradient;
 
 public class BilliardApp extends Application {
-
-    // 1. UKURAN LAYAR APLIKASI (HD 720p)
-    // Ini ukuran jendelanya (Canvas & Scene)
-    private static final double WINDOW_WIDTH = 1280;
-    private static final double WINDOW_HEIGHT = 720;
-
-    // 2. UKURAN MEJA BILIAR (Play Area - Ratio 2:1)
-    // Ini ukuran area hijaunya. Kita buat lebih kecil dari layar agar muat di tengah.
-    // Contoh: 960x480 (Tetap 2:1 dan pas di tengah layar 720p)
-    private static final double GAME_WIDTH = 960;
-    private static final double GAME_HEIGHT = 480;
 
     // SWITCH MODE:
     // true  = Menggunakan Aturan 8-Ball (Giliran, Solid/Stripes, Win/Loss)
@@ -75,43 +66,18 @@ public class BilliardApp extends Application {
     private javafx.scene.text.Text gameOverTitle; // Untuk update teks "WINNER/LOSER"
     private javafx.scene.text.Text gameOverMessage; // Untuk pesan detail
 
-    // ASSETS UI - UPDATE KOORDINAT PRESISI
+    // ASSETS UI
     private static Image uiSpriteSheet;
-    private static Image ballSpriteSheet;   // Untuk Ball Tracker
+    private static Image ballSpriteSheet;
     private static Image cueStickImage;
 
-    // 1. KUBUS (Chalk Box)
-    // Geser X +1 dan Kurangi Lebar -2 agar tidak bocor piksel tetangga
-    private static final double CUBE_SRC_X = 145;
-    private static final double CUBE_SRC_Y = 0;
-    private static final double CUBE_W = 22;  // Lebar dikecilkan dikit (Safety crop)
-    private static final double CUBE_H = 22;
-
-    // 2. PIL (Indikator Vertikal - Merah)
-    // Ambil dari Y=0 agar utuh
-    private static final double PILL_SRC_X = 169; // Geser +1 biar aman
-    private static final double PILL_SRC_Y = 0;   // Mulai dari paling atas
-    private static final double PILL_W = 6;       // Ambil tengahnya saja
-    private static final double PILL_H = 16;     // Tinggi standar
-
     // --- SHOT TIMER VARIABLES ---
-    private static final double TURN_TIME_LIMIT = 30.0; // 30 Detik
     private double currentTurnTime = TURN_TIME_LIMIT;
 
     // --- PAUSE SYSTEM ---
     private boolean isGamePaused = false;
 
-    // Koordinat Tombol Pause (Pojok Kiri Atas)
-    private static final double PAUSE_BTN_X = 20;
-    private static final double PAUSE_BTN_Y = 20;
-    private static final double PAUSE_BTN_SIZE = 40;
-
-    // --- ARCADE MODE (TIME ATTACK) CONFIG ---
-    private static final double ARCADE_START_TIME = 120.0; // 2 Menit
-    private static final double TIME_BONUS_PER_BALL = 5.0; // Tambah 5 detik per bola
-    private static final double TIME_PENALTY_FOUL = 10.0;  // Kurang 10 detik jika foul
-
-    // STATE VARIABLES
+    // --- ARCADE MODE STATE ---
     private double arcadeTimer = ARCADE_START_TIME;
     private boolean isArcadeGameOver = false;
 
@@ -133,7 +99,7 @@ public class BilliardApp extends Application {
 
             // 2. LOAD SCORE LAMA (Ini yang bikin Best Score kamu 0 terus sebelumnya)
             // Ambil data "arcade_highscore", kalau tidak ada, isi dengan 0
-            highScore = prefs.getInt("arcade_highscore", 0);
+            highScore = prefs.getInt(PREF_KEY_HIGH_SCORE, 0);
 
         } catch (Exception e) {
             System.err.println("Gagal load preferences: " + e.getMessage());
@@ -141,9 +107,9 @@ public class BilliardApp extends Application {
 
         // Load Assets (Lakukan sekali di awal)
         try {
-            if (uiSpriteSheet == null) uiSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
-            if (ballSpriteSheet == null) ballSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
-            if (cueStickImage == null) cueStickImage = new Image(getClass().getResourceAsStream("/assets/cuestick.png"));
+            if (uiSpriteSheet == null) uiSpriteSheet = new Image(getClass().getResourceAsStream(ASSET_UI_SPRITE));
+            if (ballSpriteSheet == null) ballSpriteSheet = new Image(getClass().getResourceAsStream(ASSET_BALL_SPRITE));
+            if (cueStickImage == null) cueStickImage = new Image(getClass().getResourceAsStream(ASSET_CUE_STICK));
         } catch (Exception e) {
             System.err.println("Gagal load asset: " + e.getMessage());
         }
@@ -191,8 +157,8 @@ public class BilliardApp extends Application {
 
         // --- LAYER 1: BACKGROUND IMAGE ---
         try {
-            // Memuat gambar dari folder resources/assets/BackgroundMenu.jpg
-            Image bgImage = new Image(getClass().getResourceAsStream("/assets/BackgroundMenu.jpg"));
+            // Memuat gambar dari folder resources/assets/
+            Image bgImage = new Image(getClass().getResourceAsStream(ASSET_MENU_BACKGROUND));
             ImageView bgView = new ImageView(bgImage);
 
             // Scaling logic agar gambar memenuhi layar tanpa merusak rasio (Cover mode)
@@ -393,8 +359,7 @@ public class BilliardApp extends Application {
      */
     private Font loadCustomFont(String fontFileName, double size, String fallbackFontName) {
         try {
-            // Asumsi file font ada di folder /assets/
-            // Pastikan Anda menaruh file .ttf di folder resources/assets/
+            // Font path construction
             String path = "/assets/" + fontFileName;
             Font font = Font.loadFont(getClass().getResourceAsStream(path), size);
 
@@ -641,7 +606,7 @@ public class BilliardApp extends Application {
 
     // Method Setup Rack yang SUDAH DIPERBAIKI (No Duplicate, 8 di Tengah)
     private void setupRack(List<Ball> ballList) {
-        double radius = 13.0;
+        double radius = BALL_RADIUS;
         double startX = GAME_WIDTH * 0.75;
         double startY = GAME_HEIGHT / 2.0;
 
@@ -658,10 +623,10 @@ public class BilliardApp extends Application {
 
         for (int col = 0; col < 5; col++) {
             for (int row = 0; row <= col; row++) {
-                double x = startX + (col * (radius * Math.sqrt(3) + 2));
-                double rowHeight = col * (radius * 2 + 2);
+                double x = startX + (col * (radius * Math.sqrt(3) + RACK_HORIZONTAL_SPACING));
+                double rowHeight = col * (radius * 2 + RACK_VERTICAL_SPACING);
                 double yTop = startY - (rowHeight / 2.0);
-                double y = yTop + (row * (radius * 2 + 2));
+                double y = yTop + (row * (radius * 2 + RACK_VERTICAL_SPACING));
 
                 int ballNumber;
                 boolean usePlain = false; // Flag sementara
@@ -788,7 +753,7 @@ public class BilliardApp extends Application {
 
                         // Simpan ke Registry
                         if (prefs != null) {
-                            prefs.putInt("arcade_highscore", highScore);
+                            prefs.putInt(PREF_KEY_HIGH_SCORE, highScore);
                             prefs.flush(); // Paksa simpan sekarang juga
                         }
                     } catch (Exception e) {

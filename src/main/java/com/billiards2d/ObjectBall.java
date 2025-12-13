@@ -1,5 +1,7 @@
 package com.billiards2d;
 
+import static com.billiards2d.GameConstants.*;
+
 import javafx.scene.paint.Color;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
@@ -28,13 +30,13 @@ public class ObjectBall extends Ball {
      */
     public ObjectBall(Vector2D position, int number) {
         // Memanggil konstruktor superclass (Ball)
-        super(position, Color.WHITE, 13.0); // Radius 13.0 sesuai update terakhir
+        super(position, Color.WHITE, BALL_RADIUS);
         this.number = number;
         determineType();
 
         if (ballSpriteSheet == null) {
             try {
-                ballSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+                ballSpriteSheet = new Image(getClass().getResourceAsStream(ASSET_BALL_SPRITE));
             } catch (Exception e) {
                 System.err.println("Gagal load bola: " + e.getMessage());
             }
@@ -94,7 +96,6 @@ public class ObjectBall extends Ball {
             // --- LOGIKA MAPPING SPRITE ---
             double srcX = 0;
             double srcY = 0;
-            double spriteSize = 16; // Ukuran grid aset
 
             if (usePlainTexture && number != 8) {
                 // --- MODE ARCADE (POLOS) ---
@@ -102,27 +103,27 @@ public class ObjectBall extends Ball {
 
                 if (number == 3) {
                     // MERAH POLOS (Menggantikan bola 3)
-                    srcX = 128;
-                    srcY = 0;
+                    srcX = RED_BALL_SPRITE_X;
+                    srcY = RED_BALL_SPRITE_Y;
                 }
                 else if (number == 1) {
                     // KUNING POLOS (Menggantikan bola 1)
-                    srcX = 128;
-                    srcY = 16;
+                    srcX = YELLOW_BALL_SPRITE_X;
+                    srcY = YELLOW_BALL_SPRITE_Y;
                 }
             }
             else {
                 // --- MODE STANDAR (ANGKA) ---
                 if (number <= 8) { // Baris Atas (1-8)
-                    srcX = (number - 1) * spriteSize;
+                    srcX = (number - 1) * BALL_SPRITE_SIZE;
                     srcY = 0;
                 } else { // Baris Bawah (9-15)
-                    srcX = (number - 9) * spriteSize;
-                    srcY = 16;
+                    srcX = (number - 9) * BALL_SPRITE_SIZE;
+                    srcY = BALL_SPRITE_SIZE;
                 }
             }
 
-            gc.drawImage(ballSpriteSheet, srcX, srcY, spriteSize, spriteSize, drawX, drawY, size, size);
+            gc.drawImage(ballSpriteSheet, srcX, srcY, BALL_SPRITE_SIZE, BALL_SPRITE_SIZE, drawX, drawY, size, size);
 
         } else {
             // Fallback jika gambar gagal load

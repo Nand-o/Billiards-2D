@@ -1,5 +1,7 @@
 package com.billiards2d;
 
+import static com.billiards2d.GameConstants.*;
+
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -17,13 +19,13 @@ public class FloatingText {
         this.y = y;
         this.text = text;
         this.color = color;
-        this.maxLife = 1.5; // Muncul selama 1.5 detik
+        this.maxLife = FLOATING_TEXT_LIFETIME; // Muncul selama 1.5 detik
         this.lifeTime = maxLife;
     }
 
     public boolean update(double deltaTime) {
         lifeTime -= deltaTime;
-        y -= 30 * deltaTime; // Gerak ke atas pelan-pelan
+        y -= FLOATING_TEXT_RISE_SPEED * deltaTime; // Gerak ke atas pelan-pelan
         return lifeTime <= 0; // Return true jika sudah mati (harus dihapus)
     }
 

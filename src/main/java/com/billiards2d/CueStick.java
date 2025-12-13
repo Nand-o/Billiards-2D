@@ -1,5 +1,7 @@
 package com.billiards2d;
 
+import static com.billiards2d.GameConstants.*;
+
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 import java.util.List;
@@ -24,19 +26,11 @@ public class CueStick implements GameObject {
     private double pullbackDistance = 0;
 
     // --- State Aiming (Status Bidikan) ---
-    private boolean isAiming = false;       // Apakah pemain sedang menahan klik mouse?
-    private Vector2D aimStart;              // Posisi mouse saat klik pertama kali
-    private Vector2D aimCurrent;            // Posisi mouse saat ini (saat di-drag)
-    private Vector2D mousePos = new Vector2D(0, 0); // Posisi mouse umum (untuk rotasi stik)
-    private double lockedAngleRad = 0;      // Sudut stik yang terkunci saat mulai menarih
-
-    // --- Konstanta Fisika & Visual ---
-    // Jarak maksimal stik bisa ditarik mundur secara visual (pixel)
-    private static final double MAX_PULL = 300.0;
-    // Gaya maksimal yang bisa diberikan ke bola (satuan fisika arbitrer)
-    private static final double MAX_FORCE = 1350.0;
-    // Jarak tarik mouse yang dianggap sebagai kekuatan penuh (pixel)
-    private static final double MAX_DRAG_DISTANCE = 300.0;
+    private boolean isAiming = false;
+    private Vector2D aimStart;
+    private Vector2D aimCurrent;
+    private Vector2D mousePos = new Vector2D(0, 0);
+    private double lockedAngleRad = 0;
 
     private final Image stickImage;
 
@@ -257,7 +251,7 @@ public class CueStick implements GameObject {
 
         // --- 3. HITUNG POSISI JARAK (OFFSET) ---
         // Jarak ujung stik dari pusat bola + animasi tarik mundur (pullback)
-        double distFromBall = cueBall.getRadius() + 10 + this.pullbackDistance;
+        double distFromBall = cueBall.getRadius() + STICK_OFFSET_FROM_BALL + this.pullbackDistance;
 
         gc.save(); // Simpan state asli
 
