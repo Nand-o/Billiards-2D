@@ -98,13 +98,14 @@ public class BilliardApp extends Application {
     // --- SCENE MANAGEMENT ---
     private Stage primaryStage;
     private GameLoop gameLoop;
+    private SceneManager sceneManager;
 
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage; // Simpan referensi
 
         try {
-            // 1. Inisialisasi Objek Preferences
+            // 1. Inisialisasi Objek Preferences FIRST!
             prefs = Preferences.userNodeForPackage(BilliardApp.class);
 
             // 2. High score will be loaded by GameController
@@ -113,6 +114,15 @@ public class BilliardApp extends Application {
         } catch (Exception e) {
             System.err.println("Gagal load preferences: " + e.getMessage());
         }
+        
+        // Initialize Scene Manager AFTER prefs
+        sceneManager = new SceneManager(primaryStage, prefs);
+        sceneManager.setCallbacks(
+            this::startGame,
+            this::restartGame,
+            this::returnToMenu,
+            this::togglePause
+        );
 
         // Load Assets (Lakukan sekali di awal)
         try {
@@ -128,7 +138,7 @@ public class BilliardApp extends Application {
         hudRenderer = new HUDRenderer();
 
         // Langsung masuk ke Menu Utama
-        showMainMenu();
+        sceneManager.showMainMenu(gameLoop);
     }
 
     /**
@@ -194,248 +204,23 @@ public class BilliardApp extends Application {
     }
 
     /**
-     * LANGKAH 5.2: Desain Visual Main Menu (Retro Arcade Style)
-     * Mereplika tampilan referensi dengan background hijau dan tipografi pixel.
+     * Return to main menu (scene transition)
      */
-    private void showMainMenu() {
+    private void returnToMenu() {
+        // Stop game loop if running
         if (gameLoop != null) {
             gameLoop.stop();
         }
-
-        // 1. ROOT CONTAINER (StackPane)
-        StackPane root = new StackPane();
-
-        // --- LAYER 1: BACKGROUND IMAGE ---
-        try {
-            // Memuat gambar dari folder resources/assets/
-            Image bgImage = new Image(getClass().getResourceAsStream(ASSET_MENU_BACKGROUND));
-            ImageView bgView = new ImageView(bgImage);
-
-            // Scaling logic agar gambar memenuhi layar tanpa merusak rasio (Cover mode)
-            bgView.fitWidthProperty().bind(primaryStage.widthProperty());
-            bgView.fitHeightProperty().bind(primaryStage.heightProperty());
-
-            // Opsional: Jika gambar aslinya tidak hijau, kita bisa beri filter warna hijau lewat kode
-            // Tapi karena Anda bilang sudah menyiapkan gambar hijau, kita pakai mode normal saja.
-
-            root.getChildren().add(bgView);
-        } catch (Exception e) {
-            // Fallback jika gambar tidak ditemukan: Pakai warna Hijau Gelap
-            Canvas bgFallback = new Canvas(WINDOW_WIDTH, WINDOW_HEIGHT);
-            GraphicsContext gc = bgFallback.getGraphicsContext2D();
-            gc.setFill(Color.rgb(0, 40, 0)); // Hijau gelap banget
-            gc.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-            drawGridPattern(gc); // Gambar garis-garis grid hijau manual
-            root.getChildren().add(bgFallback);
-            System.err.println("Background image not found, using fallback. Error: " + e.getMessage());
-        }
-
-        // --- LAYER 2: UI LAYOUT (BorderPane) ---
-        BorderPane mainLayout = new BorderPane();
-        mainLayout.setPadding(new Insets(20, 40, 20, 40)); // Padding pinggir layar
-
-        // A. TOP: HUD (1UP, HI-SCORE, 2UP) - Font: VCR OSD Mono
-        HBox topHud = new HBox();
-        topHud.setAlignment(Pos.CENTER);
-
-        // Load High Score dari Prefs
-        String highScoreStr = String.format("%06d", prefs.getInt("arcade_highscore", 0));
-
-        // Kita buat 3 bagian: Kiri (1UP), Tengah (HI-SCORE), Kanan (2UP/CREDIT)
-        VBox p1Box = createHudBox("1UP", "000000"); // Skor P1 (Dummy 0 dulu)
-        VBox hiScoreBox = createHudBox("HI-SCORE", highScoreStr);
-        VBox p2Box = createHudBox("2UP", "000000"); // Skor P2 (Dummy)
-
-        // Spacer agar Hi-Score pas di tengah
-        Region spacer1 = new Region(); HBox.setHgrow(spacer1, Priority.ALWAYS);
-        Region spacer2 = new Region(); HBox.setHgrow(spacer2, Priority.ALWAYS);
-
-        topHud.getChildren().addAll(p1Box, spacer1, hiScoreBox, spacer2, p2Box);
-        mainLayout.setTop(topHud);
-
-        // B. CENTER: JUDUL & TOMBOL
-        VBox centerBox = new VBox(15); // Jarak antar elemen vertikal
-        centerBox.setAlignment(Pos.CENTER);
-
-        // 1. MAIN TITLE "BILLIARD 2D" - Font: ArcadeClassic
-        Text title = new Text("BILLIARD 2D");
-        // Gunakan method helper untuk load font, fallback ke Impact jika file font tidak ada
-        title.setFont(loadCustomFont("ArcadeClassic.ttf", 90, "Impact"));
-
-        // Styling Gradient (Merah -> Oranye -> Kuning) seperti referensi
-        LinearGradient titleGradient = new LinearGradient(
-                0, 0, 0, 1, true, CycleMethod.NO_CYCLE,
-                new Stop(0.0, Color.web("#ff4e00")),  // Atas: Merah Oranye
-                new Stop(0.5, Color.web("#ffcc00")),  // Tengah: Emas
-                new Stop(1.0, Color.web("#ffff00"))   // Bawah: Kuning
-        );
-        title.setFill(titleGradient);
-        title.setStroke(Color.BLACK); // Outline Hitam
-        title.setStrokeWidth(3);
-
-        // Efek Bayangan Teks (Drop Shadow Solid)
-        DropShadow titleShadow = new DropShadow();
-        titleShadow.setColor(Color.BLACK);
-        titleShadow.setOffsetX(5);
-        titleShadow.setOffsetY(5);
-        titleShadow.setRadius(0); // Radius 0 bikin bayangan tajam (pixel style)
-        title.setEffect(titleShadow);
-
-        // 2. SUBTITLE
-        Text subTitle = new Text("ULTIMATE ARCADE EXPERIENCE");
-        subTitle.setFont(loadCustomFont("PixelOperator-Bold.ttf", 20, "Consolas"));
-        subTitle.setFill(Color.web("#dca466")); // Warna kulit/krem retro
-        subTitle.setEffect(new DropShadow(2, Color.BLACK));
-
-        // Spacer antara judul dan tombol
-        Region titleSpacer = new Region();
-        titleSpacer.setPrefHeight(40);
-
-        // 3. BUTTONS (Tombol Emas/Oranye) - Font: Pixel Operator
-        Button btn8Ball = createRetroButton("PLAY 8-BALL (2 Player)", () -> startGame(true));
-        Button btnArcade = createRetroButton("ARCADE RUSH (1 Player)", () -> startGame(false));
-        Button btnExit = createRetroButton("EXIT GAME", () -> primaryStage.close());
-
-        centerBox.getChildren().addAll(title, subTitle, titleSpacer, btn8Ball, btnArcade, btnExit);
-        mainLayout.setCenter(centerBox);
-
-        // C. BOTTOM: CREDIT & COPYRIGHT
-        VBox bottomBox = new VBox(5);
-        bottomBox.setAlignment(Pos.CENTER);
-
-        Text creditText = new Text("CREDIT 012");
-        creditText.setFont(loadCustomFont("VCR_OSD_MONO_1.001.ttf", 24, "Courier New"));
-        creditText.setFill(Color.WHITE);
-        creditText.setEffect(new DropShadow(2, Color.BLACK));
-
-        Text copyText = new Text("© 2025 BILLIARD2D PROJECT. CREATED WITH JAVAFX.");
-        copyText.setFont(loadCustomFont("PixelOperator-Bold.ttf", 12, "Consolas"));
-        copyText.setFill(Color.WHITE);
-
-        bottomBox.getChildren().addAll(creditText, copyText);
-        mainLayout.setBottom(bottomBox);
-
-        // Masukkan Layout UI ke Root
-        root.getChildren().add(mainLayout);
-
-        // --- LAYER 3: CRT SCANLINE EFFECT (Opsional - Estetika) ---
-        // Membuat garis-garis hitam tipis transparan di seluruh layar
-        Canvas crtCanvas = new Canvas(WINDOW_WIDTH, WINDOW_HEIGHT);
-        GraphicsContext crtGC = crtCanvas.getGraphicsContext2D();
-        crtGC.setFill(Color.rgb(0, 0, 0, 0.15)); // Hitam transparan (15%)
-        for (int y = 0; y < WINDOW_HEIGHT; y += 4) { // Gambar garis setiap 4 pixel
-            crtGC.fillRect(0, y, WINDOW_WIDTH, 2);
-        }
-        // Matikan interaksi mouse ke layer efek ini supaya tombol di bawahnya bisa diklik
-        crtCanvas.setMouseTransparent(true);
-        root.getChildren().add(crtCanvas);
-
-        // SET SCENE
-        Scene menuScene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
-        primaryStage.setTitle("Billiard 2D - Main Menu");
-        primaryStage.setScene(menuScene);
-        primaryStage.show();
+        
+        // Show main menu
+        sceneManager.showMainMenu(gameLoop);
     }
 
-    // --- HELPER METHODS UNTUK MENU RETRO ---
-
-    /**
-     * Membuat kotak HUD (Skor) di bagian atas.
-     */
-    private VBox createHudBox(String label, String value) {
-        VBox box = new VBox(2);
-        box.setAlignment(Pos.CENTER);
-
-        Text lbl = new Text(label);
-        lbl.setFont(loadCustomFont("ArcadeClassic.ttf", 18, "Impact"));
-        lbl.setFill(Color.CYAN); // Warna label HUD biasanya Cyan atau Merah
-        lbl.setStroke(Color.BLACK);
-        lbl.setStrokeWidth(1);
-
-        Text val = new Text(value);
-        val.setFont(loadCustomFont("VCR_OSD_MONO_1.001.ttf", 20, "Courier New"));
-        val.setFill(Color.WHITE);
-        val.setEffect(new DropShadow(2, Color.BLACK));
-
-        box.getChildren().addAll(lbl, val);
-        return box;
-    }
-
-    /**
-     * Membuat tombol gaya Retro Arcade (Kapsul Emas).
-     */
-    private Button createRetroButton(String text, Runnable action) {
-        Button btn = new Button(text);
-        // Load font untuk tombol
-        btn.setFont(loadCustomFont("PixelOperator-Bold.ttf", 22, "Consolas"));
-
-        btn.setPrefWidth(400);
-        btn.setPrefHeight(55);
-
-        // CSS Styling Retro: Gradient Emas, Border Tebal, Text Hitam
-        String normalStyle =
-                "-fx-background-color: linear-gradient(to bottom, #ffcc00, #ff9900); " + // Emas ke Oranye
-                        "-fx-text-fill: #3e2723; " + // Coklat Tua/Hitam
-                        "-fx-background-radius: 15; " + // Sudut sedikit membulat (bukan bulat penuh)
-                        "-fx-border-color: #3e2723; " + // Border warna Coklat Tua
-                        "-fx-border-width: 3; " +
-                        "-fx-border-radius: 15; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 0, 0, 4, 4);"; // Bayangan tajam ke kanan bawah
-
-        String hoverStyle =
-                "-fx-background-color: linear-gradient(to bottom, #ffeb3b, #ffc107); " + // Lebih terang saat hover
-                        "-fx-text-fill: black; " +
-                        "-fx-background-radius: 15; " +
-                        "-fx-border-color: black; " +
-                        "-fx-border-width: 3; " +
-                        "-fx-border-radius: 15; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 0, 0, 4, 4);";
-
-        btn.setStyle(normalStyle);
-        btn.setOnMouseEntered(e -> btn.setStyle(hoverStyle));
-        btn.setOnMouseExited(e -> btn.setStyle(normalStyle));
-        btn.setOnAction(e -> action.run());
-
-        return btn;
-    }
-
-    /**
-     * Helper untuk memuat Custom Font. Jika gagal, pakai font sistem.
-     * @param fontFileName Nama file font di folder /assets/fonts/ (Idealnya) atau root.
-     * @param size Ukuran font.
-     * @param fallbackFontName Nama font sistem cadangan (cth: "Arial", "Impact").
-     */
-    private Font loadCustomFont(String fontFileName, double size, String fallbackFontName) {
-        try {
-            // Font path construction
-            String path = "/assets/" + fontFileName;
-            Font font = Font.loadFont(getClass().getResourceAsStream(path), size);
-
-            if (font != null) {
-                return font;
-            }
-        } catch (Exception e) {
-            // Silent fail, lanjut ke fallback
-        }
-
-        // Jika gagal load, kembalikan font sistem + Bold
-        return Font.font(fallbackFontName, FontWeight.BOLD, size);
-    }
-
-    /**
-     * Fallback menggambar Grid jika gambar background gagal dimuat.
-     */
-    private void drawGridPattern(GraphicsContext gc) {
-        gc.setStroke(Color.rgb(0, 100, 0)); // Hijau lebih terang
-        gc.setLineWidth(2);
-
-        // Gambar Grid
-        int step = 60;
-        for (int x = 0; x < WINDOW_WIDTH; x += step) gc.strokeLine(x, 0, x, WINDOW_HEIGHT);
-        for (int y = 0; y < WINDOW_HEIGHT; y += step) gc.strokeLine(0, y, WINDOW_WIDTH, y);
-    }
+    // ==================== SCENE MANAGEMENT METHODS MOVED ====================
+    // The following methods have been extracted to SceneManager.java:
+    // - showMainMenu(), createHudBox(), createRetroButton(), loadCustomFont(), drawGridPattern()
+    // - createPauseOverlay(), createGameOverOverlay()
+    // ==========================================================================
 
     /**
      * Memulai permainan (Scene Game) berdasarkan mode yang dipilih.
@@ -462,9 +247,13 @@ public class BilliardApp extends Application {
         // Layer 1: Canvas Game
         root.getChildren().add(canvas);
 
-        // 4. SETUP OVERLAYS (UI MENU)
-        createPauseOverlay();     // Helper method baru
-        createGameOverOverlay();  // Helper method baru
+        // 4. SETUP OVERLAYS (UI MENU) - Use SceneManager
+        pauseOverlay = sceneManager.createPauseOverlay();
+        
+        SceneManager.GameOverComponents gameOverComponents = sceneManager.createGameOverOverlay();
+        gameOverOverlay = gameOverComponents.overlay;
+        gameOverTitle = gameOverComponents.title;
+        gameOverMessage = gameOverComponents.message;
 
         // Layer 2 & 3: Menu (Default Hidden)
         root.getChildren().addAll(pauseOverlay, gameOverOverlay);
@@ -960,55 +749,7 @@ public class BilliardApp extends Application {
 
     // --- OVERLAY BUILDERS ---
 
-    private void createPauseOverlay() {
-        pauseOverlay = new VBox(20); // Spacing 20px
-        pauseOverlay.setAlignment(Pos.CENTER);
-        // Background Gelap Transparan
-        pauseOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7);");
-        pauseOverlay.setVisible(false); // Default Hidden
 
-        // Judul
-        Text title = new Text("PAUSED");
-        title.setFont(Font.font("Impact", 60));
-        title.setFill(Color.WHITE);
-        title.setStroke(Color.BLACK);
-        title.setStrokeWidth(2);
-
-        // Tombol-tombol
-        Button btnResume = createRetroButton("RESUME GAME", () -> togglePause());
-        Button btnMenu = createRetroButton("MAIN MENU", () -> showMainMenu());
-        Button btnExit = createRetroButton("EXIT DESKTOP", () -> primaryStage.close());
-
-        // Kecilkan sedikit tombol pause menu dibanding main menu
-        btnResume.setPrefWidth(300);
-        btnMenu.setPrefWidth(300);
-        btnExit.setPrefWidth(300);
-
-        pauseOverlay.getChildren().addAll(title, btnResume, btnMenu, btnExit);
-    }
-
-    private void createGameOverOverlay() {
-        gameOverOverlay = new VBox(20);
-        gameOverOverlay.setAlignment(Pos.CENTER);
-        gameOverOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85);");
-        gameOverOverlay.setVisible(false);
-
-        // Kita simpan referensi text agar bisa diubah isinya (WIN/LOSE) nanti
-        gameOverTitle = new Text("GAME OVER");
-        gameOverTitle.setFont(Font.font("Impact", 80));
-        gameOverTitle.setFill(Color.RED);
-        gameOverTitle.setStroke(Color.WHITE);
-        gameOverTitle.setStrokeWidth(3);
-
-        gameOverMessage = new Text("");
-        gameOverMessage.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
-        gameOverMessage.setFill(Color.YELLOW);
-
-        Button btnRestart = createRetroButton("PLAY AGAIN", () -> restartGame());
-        Button btnMenu = createRetroButton("MAIN MENU", () -> showMainMenu());
-
-        gameOverOverlay.getChildren().addAll(gameOverTitle, gameOverMessage, btnRestart, btnMenu);
-    }
 
     // Helper toggle pause sederhana
     private void togglePause() {

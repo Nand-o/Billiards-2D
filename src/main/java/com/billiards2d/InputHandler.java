@@ -152,6 +152,7 @@ public class InputHandler {
         if (code == KeyCode.ESCAPE) {
             if (onTogglePause != null) onTogglePause.run();
         } else if (code == KeyCode.C) {
+            // DEBUG: Clear table (Arcade mode only)
             if (!is8BallMode && onDebugClearTable != null) {
                 onDebugClearTable.run();
             }
