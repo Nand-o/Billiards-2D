@@ -1,12 +1,18 @@
 package com.billiards2d.core;
 
 /**
- * Kelas konstanta untuk menyimpan semua nilai konfigurasi game.
+ * Kumpulan konstanta konfigurasi untuk permainan (window size, fisika,
+ * durasi efek, sprite offsets, dan konfigurasi lainnya).
  * <p>
- * Kelas ini menggunakan pattern Constants Class untuk sentralisasi semua magic numbers
- * dan string literals yang digunakan di seluruh aplikasi. Dengan ini, perubahan nilai
- * konfigurasi dapat dilakukan di satu tempat tanpa perlu mencari di banyak file.
+ * Menggunakan kelas constants memberikan satu sumber kebenaran untuk
+ * angka-angka "magic" yang digunakan di banyak tempat. Jangan mengubah nilai
+ * di runtime; bila perlu ubah di sini dan lakukan pengujian ulang untuk
+ * memastikan feel permainan tetap sesuai.
  * </p>
+ *
+ * Catatan: tidak mengandung logika; hanya konstanta publik/private.
+ *
+ * @since 2025-12-13
  */
 public final class GameConstants {
 

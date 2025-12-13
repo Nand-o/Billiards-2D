@@ -18,9 +18,14 @@ import java.util.prefs.Preferences;
 import static com.billiards2d.core.GameConstants.*;
 
 /**
- * Controls the main game loop logic including physics updates, turn management,
- * timer handling, and game state transitions.
- * Extracted from BilliardApp to follow Single Responsibility Principle.
+ * Orkestrator loop permainan: mengatur update fisika, giliran pemain,
+ * pemrosesan skor/penalti, serta transisi antar state (pause, gameover).
+ * <p>
+ * GameController bertindak sebagai lapisan "koordinator" yang menggabungkan
+ * subsistem fisika, aturan, dan UI agar berjalan harmonis setiap frame.
+ * </p>
+ *
+ * @since 2025-12-13
  */
 public class GameController {
     

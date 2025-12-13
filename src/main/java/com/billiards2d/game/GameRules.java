@@ -7,8 +7,14 @@ import com.billiards2d.entities.balls.ObjectBall;
 import java.util.List;
 
 /**
- * Kelas yang bertindak sebagai "Wasit" dan Pengelola Status Permainan (Game State).
- * Kelas ini bertanggung jawab menerapkan aturan 8-Ball Pool standar.
+ * Pengelola aturan permainan (ref: 8-Ball Pool).
+ * <p>
+ * Bertugas menyimpan state permainan (giliran pemain, siapa solid/stripe,
+ * menang/kalah), serta mengevaluasi hasil setiap pukulan (mis. bola apa saja
+ * yang masuk). Kelas ini berperan sebagai "wasit" logika game.
+ * </p>
+ *
+ * @since 2025-12-13
  */
 public class GameRules {
 

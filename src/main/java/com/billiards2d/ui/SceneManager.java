@@ -28,9 +28,15 @@ import java.util.prefs.Preferences;
 import static com.billiards2d.core.GameConstants.*;
 
 /**
- * Manages scene creation and transitions for the billiard game.
- * Handles main menu, game scene setup, and overlay creation.
- * Extracted from BilliardApp to follow Single Responsibility Principle.
+ * Mengelola pembuatan Scene dan transisi antar-tampilan pada aplikasi
+ * JavaFX untuk permainan biliar.
+ * <p>
+ * Tanggung jawab utama mencakup pembuatan menu utama, setup scene permainan,
+ * serta overlay seperti pause dan game-over. Pemisahan ini dilakukan agar
+ * `BilliardApp` tetap ringan dan fokus pada lifecycle aplikasi.
+ * </p>
+ *
+ * @since 2025-12-13
  */
 public class SceneManager {
     

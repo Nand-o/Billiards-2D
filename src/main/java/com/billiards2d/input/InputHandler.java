@@ -15,8 +15,16 @@ import java.util.List;
 import static com.billiards2d.core.GameConstants.*;
 
 /**
- * Handles all user input (mouse and keyboard events) for the billiard game.
- * Extracted from BilliardApp to follow Single Responsibility Principle.
+ * Handler untuk semua input pemain (mouse + keyboard).
+ * <p>
+ * Tugasnya menerjemahkan event input menjadi aksi di game, seperti:
+ * - menggerakkan `CueStick` dan mengatur power drag-and-release,
+ * - menangani tombol pause/restart, dan shortcut pengembang (debug).
+ * </p>
+ *
+ * Catatan: teks dan notifikasi HUD tetap menggunakan Bahasa Inggris.
+ *
+ * @since 2025-12-13
  */
 public class InputHandler {
     

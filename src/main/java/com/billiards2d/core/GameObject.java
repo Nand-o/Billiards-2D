@@ -3,12 +3,15 @@ package com.billiards2d.core;
 import javafx.scene.canvas.GraphicsContext;
 
 /**
- * Interface kontrak untuk semua entitas dalam permainan.
+ * Kontrak (interface) untuk setiap entitas yang berpartisipasi di dalam
+ * game loop (update/draw). Semua objek permainan yang perlu diperbarui
+ * setiap frame harus mengimplementasikan interface ini.
  * <p>
- * Setiap objek yang ingin dimasukkan ke dalam Game Loop harus mengimplementasikan interface ini.
- * Ini memungkinkan penerapan prinsip Polimorfisme, di mana objek yang berbeda
- * (Bola, Meja, Stik) dapat dikelola secara seragam.
+ * Tujuan: memungkinkan pengelolaan koleksi heterogen dari objek-objek
+ * game (seperti bola, stik, meja) dengan pola yang konsisten.
  * </p>
+ *
+ * @since 2025-12-13
  */
 public interface GameObject {
 

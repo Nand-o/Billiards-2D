@@ -14,8 +14,14 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
 /**
- * Class untuk rendering UI dalam permainan (In-Game UI).
- * Handles: Power Bar, Ball Tracker, Player Stats, Status Messages, Sidebar, Pause Button/Menu
+ * Renderer untuk elemen-elemen UI di dalam permainan (power bar, tracker bola,
+ * status pemain, sidebar, dan menu pause).
+ * <p>
+ * Perhatian: string notifikasi yang tampil pada game (mis. "Player 1 wins")
+ * dipertahankan dalam Bahasa Inggris dan tidak diubah oleh dokumentasi ini.
+ * </p>
+ *
+ * @since 2025-12-13
  */
 public class GameUIRenderer {
 
@@ -333,7 +339,7 @@ public class GameUIRenderer {
     }
 
     /**
-     * LAYER BAWAH: Menggambar Pipa & Keranjang Kosong
+     * LAYER BAWAH: Menggambar Pipa &amp; Keranjang Kosong
      */
     public void drawSideBarBackground(GraphicsContext gc, double screenW, double screenH,
                                      double currentOffsetX, double currentOffsetY) {

@@ -7,12 +7,13 @@ import javafx.scene.paint.Color;
 import javafx.scene.canvas.GraphicsContext;
 
 /**
- * Kelas yang merepresentasikan Bola Putih (Cue Ball).
+ * Implementasi bola putih (cue ball) yang dapat dikendalikan oleh pemain.
  * <p>
- * Ini adalah bola utama yang dikendalikan oleh pemain menggunakan stik.
- * Kelas ini mewarisi semua properti fisik dari kelas {@link Ball} namun memiliki
- * metode tambahan untuk menerima interaksi pukulan.
+ * Menangani status khusus seperti pending respawn ketika bola masuk lubang,
+ * serta menerima gaya dari {@link com.billiards2d.entities.CueStick}.
  * </p>
+ *
+ * @since 2025-12-13
  */
 public class CueBall extends Ball {
 
@@ -43,8 +44,8 @@ public class CueBall extends Ball {
      * Gaya yang diterima langsung dikonversi menjadi kecepatan awal (velocity) bola.
      * </p>
      *
-     * @param force Vektor gaya yang dihasilkan oleh {@link CueStick},
-     *              yang mencakup arah dan besaran kekuatan pukulan.
+    * @param force Vektor gaya yang dihasilkan oleh {@link com.billiards2d.entities.CueStick},
+    *              yang mencakup arah dan besaran kekuatan pukulan.
      */
     public void hit(Vector2D force) {
         // Dalam simulasi sederhana ini, gaya impuls langsung menjadi kecepatan sesaat.

@@ -12,6 +12,20 @@ import javafx.scene.canvas.GraphicsContext;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Mesin fisika sederhana untuk simulasi gerak dan tabrakan bola.
+ * <p>
+ * Tanggung jawab utama:
+ * - Memperbarui posisi/kecepatan bola berdasarkan integrasi sederhana.
+ * - Menangani pantulan dinding, restitusi (bounciness), dan friction.
+ * - Mendeteksi bola yang masuk pocket dan melaporkannya ke reporter.
+ * </p>
+ *
+ * Catatan: Kelas ini tidak melakukan rendering; hanya mengatur status fisik
+ * dari objek-objek permainan.
+ *
+ * @since 2025-12-13
+ */
 public class PhysicsEngine implements GameObject {
 
     private Table table;

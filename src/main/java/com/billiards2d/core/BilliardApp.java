@@ -46,6 +46,25 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.LinearGradient;
 
+/**
+ * Kelas utama aplikasi JavaFX untuk permainan Billiards-2D.
+ * <p>
+ * Tanggung jawab utama:
+ * - Inisialisasi aset dan subsistem (physics, rules, input, UI).
+ * - Mengelola lifecycle aplikasi JavaFX (`start` dan `main`).
+ * - Menyediakan titik integrasi antara subsistem (GameController,
+ *   PhysicsEngine, SceneManager, dan InputHandler).
+ * </p>
+ *
+ * Catatan:
+ * - Dokumentasi ini ditulis dalam Bahasa Indonesia. Semua teks yang
+ *   tampil di antarmuka permainan (HUD, notifikasi, pesan kemenangan)
+ *   dibiarkan dalam Bahasa Inggris dan tidak dimodifikasi oleh Javadoc.
+ * - Perubahan yang dilakukan hanya pada bagian dokumentasi; tidak ada
+ *   perubahan logika permainan di file ini.
+ *
+ * @since 2025-12-13
+ */
 public class BilliardApp extends Application {
 
     // SWITCH MODE:
@@ -114,6 +133,12 @@ public class BilliardApp extends Application {
     private GameLoop gameLoop;
     private SceneManager sceneManager;
 
+    /**
+     * Memulai aplikasi JavaFX: inisialisasi subsistem (prefs, scene manager,
+     * renderer, assets), kemudian menampilkan menu utama.
+     *
+     * @param primaryStage Stage utama JavaFX
+     */
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage; // Simpan referensi
@@ -774,7 +799,15 @@ public class BilliardApp extends Application {
         pauseOverlay.setVisible(isGamePaused);
     }
 
+    /**
+     * Entry point aplikasi ketika dijalankan dari command line.
+     * Mendelegasikan kontrol ke JavaFX runtime dan memanggil {@link #start}.
+     *
+     * @param args Argumen baris perintah (tidak digunakan)
+     */
     public static void main(String[] args) {
         launch(args);
     }
 }
+
+

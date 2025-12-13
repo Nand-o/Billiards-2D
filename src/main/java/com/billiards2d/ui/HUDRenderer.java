@@ -6,8 +6,13 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
 /**
- * Class untuk rendering HUD Arcade Mode
- * Handles: Timer, Score, High Score display
+ * Renderer untuk Heads-Up Display (HUD) pada game modes seperti Arcade.
+ * <p>
+ * Menangani tampilan timer, score, dan high-score di layar.
+ * Semua teks HUD direncanakan agar tampil dalam Bahasa Inggris di UI.
+ * </p>
+ *
+ * @since 2025-12-13
  */
 public class HUDRenderer {
 

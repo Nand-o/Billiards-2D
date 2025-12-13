@@ -1,12 +1,19 @@
 package com.billiards2d.util;
 
 /**
- * Kelas utilitas untuk merepresentasikan vektor matematika 2 dimensi (x, y).
+ * Representasi vektor 2D immutable (x, y) yang digunakan untuk semua
+ * perhitungan posisi, kecepatan, dan operasi vektor di seluruh aplikasi.
  * <p>
- * Kelas ini menyediakan operasi aljabar vektor dasar yang diperlukan untuk
- * perhitungan fisika, seperti posisi, kecepatan, dan gaya.
- * Kelas ini bersifat Immutable (objek tidak dapat diubah setelah dibuat).
+ * Kelas ini menyediakan operasi dasar seperti penjumlahan, pengurangan,
+ * perkalian skalar, normalisasi, serta dot-product. Objek bersifat
+ * immutable: setiap operasi mengembalikan instance baru sehingga
+ * menghindari efek samping saat digunakan di subsistem fisika.
  * </p>
+ *
+ * Dokumentasi metode ditulis dalam Bahasa Indonesia. Notifikasi atau teks
+ * yang tampil di UI tetap menggunakan Bahasa Inggris dan tidak diubah di sini.
+ *
+ * @since 2025-12-13
  */
 public class Vector2D {
     private final double x;

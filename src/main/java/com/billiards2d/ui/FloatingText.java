@@ -7,6 +7,13 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
+/**
+ * Small ephemeral text that floats upwards and disappears. Used for
+ * short in-game feedback (e.g., +score). The textual content shown
+ * in-game is maintained in English and is not modified by these docs.
+ *
+ * @since 2025-12-13
+ */
 public class FloatingText {
     private double x, y;
     private String text;

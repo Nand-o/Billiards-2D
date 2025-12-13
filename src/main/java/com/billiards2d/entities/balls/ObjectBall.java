@@ -8,11 +8,13 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
 
 /**
- * Kelas yang merepresentasikan Bola Objek (Object Ball).
+ * Bola objek bernomor yang merupakan target permainan (1-15).
  * <p>
- * Ini adalah bola-bola target (berwarna/bernomor) yang harus dimasukkan ke dalam lubang.
- * Kelas ini mewarisi sifat fisik dari {@link Ball} dan menambahkan properti nomor dan Tipe Bola.
+ * Menyimpan informasi nomor dan tipe (solid/stripe/8), serta logika
+ * rendering sprite yang sesuai dengan nomor bola.
  * </p>
+ *
+ * @since 2025-12-13
  */
 public class ObjectBall extends Ball {
 

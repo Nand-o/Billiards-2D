@@ -9,8 +9,16 @@ import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
 
 /**
- * Kelas abstrak yang merepresentasikan entitas dasar Bola Biliar.
- * Kelas ini menangani properti fisik dan sekarang menangani VISUAL SPRITE.
+ * Abstraksi dasar untuk semua bola di meja biliar.
+ * <p>
+ * Menyediakan properti fisik (posisi, kecepatan, massa, radius) serta contract
+ * untuk menggambar dan memperbarui status. Kelas konkret seperti
+ * {@link com.billiards2d.entities.balls.CueBall} dan
+ * {@link com.billiards2d.entities.balls.ObjectBall} mewarisi dari kelas ini.
+ * </p>
+ *
+ * Dokumentasi metode utama (misal update/draw) ditulis dalam Bahasa Indonesia.
+ * @since 2025-12-13
  */
 public abstract class Ball implements GameObject {
 

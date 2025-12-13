@@ -11,6 +11,17 @@ import javafx.scene.paint.Color;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Representasi meja biliar lengkap dengan kantong (pockets) dan dinding.
+ * <p>
+ * Meja mengelola area permainan, deteksi masuk kantong, serta mematikan
+ * dinding di sekitar entrance pocket ketika bola akan melewati lubang.
+ * Logic ini penting untuk interaksi antara {@link com.billiards2d.entities.balls.Ball}
+ * dan subsistem fisika {@link com.billiards2d.game.PhysicsEngine}.
+ * </p>
+ *
+ * @since 2025-12-13
+ */
 public class Table implements GameObject {
 
     // --- INNER CLASS UPDATED ---

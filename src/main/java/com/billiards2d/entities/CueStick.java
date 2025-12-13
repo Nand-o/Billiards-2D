@@ -14,13 +14,18 @@ import java.util.List;
 import javafx.scene.image.Image;
 
 /**
- * Kelas yang merepresentasikan Stik Biliar (Cue Stick).
+ * Mekanika stik biliar yang bertanggung jawab pada aksi bidik dan pukul.
  * <p>
- * Kelas ini menangani semua interaksi input pemain (mouse), termasuk:
- * 1. Membidik (menggerakkan mouse di sekitar bola putih).
- * 2. Mengatur kekuatan pukulan (drag-and-release mechanic).
- * 3. Menampilkan visualisasi bantuan seperti garis prediksi dan ghost ball.
+ * Menangani input pemain yang berkaitan dengan pengisian power, arahan pukulan,
+ * serta men-generate visualisasi prediksi (ghost ball dan garis arah).
+ * CueStick berinteraksi erat dengan {@link com.billiards2d.entities.balls.CueBall}
+ * dan subsistem aturan {@link com.billiards2d.game.GameRules}.
  * </p>
+ *
+ * Perhatikan: komentar ini hanya mendokumentasikan API; teks yang tampil di UI
+ * (mis. notifikasi kemenangan) tetap dalam Bahasa Inggris dan tidak diubah.
+ *
+ * @since 2025-12-13
  */
 public class CueStick implements GameObject {
 
