@@ -82,6 +82,7 @@ public class BilliardApp extends Application {
     // ASSETS UI - UPDATE KOORDINAT PRESISI
     private static Image uiSpriteSheet;
     private static Image ballSpriteSheet;   // Untuk Ball Tracker
+    private static Image cueStickImage;
 
     // 1. KUBUS (Chalk Box)
     // Geser X +1 dan Kurangi Lebar -2 agar tidak bocor piksel tetangga
@@ -147,6 +148,7 @@ public class BilliardApp extends Application {
         try {
             if (uiSpriteSheet == null) uiSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
             if (ballSpriteSheet == null) ballSpriteSheet = new Image(getClass().getResourceAsStream("/assets/SMS_GUI_Display_NO_BG.png"));
+            if (cueStickImage == null) cueStickImage = new Image(getClass().getResourceAsStream("/assets/cuestick.png"));
         } catch (Exception e) {
             System.err.println("Gagal load asset: " + e.getMessage());
         }
@@ -636,7 +638,7 @@ public class BilliardApp extends Application {
         gameObjects.add(cueBall);
         setupRack(allBalls); // Setup 15 bola
 
-        this.cueStick = new CueStick(cueBall, allBalls, GAME_WIDTH, GAME_HEIGHT, gameRules);
+        this.cueStick = new CueStick(cueBall, allBalls, GAME_WIDTH, GAME_HEIGHT, gameRules, cueStickImage);
         this.cueStick.setArcadeMode(!is8BallMode);
         this.physicsEngine = new PhysicsEngine(table, gameObjects);
 
@@ -1617,7 +1619,7 @@ public class BilliardApp extends Application {
         allBallsForStick.addAll(newBalls);
 
         // Update Stick
-        this.cueStick = new CueStick(cueBall, allBallsForStick, GAME_WIDTH, GAME_HEIGHT, gameRules);
+        this.cueStick = new CueStick(cueBall, allBallsForStick, GAME_WIDTH, GAME_HEIGHT, gameRules, cueStickImage);
         this.cueStick.setArcadeMode(true); // Jangan lupa set mode lagi
 
         // 5. Reset Posisi Cue Ball ke Head String (Biar adil)

@@ -4,6 +4,7 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import java.util.List;
+import javafx.scene.image.Image;
 
 /**
  * Kelas yang merepresentasikan Stik Biliar (Cue Stick).
@@ -21,6 +22,7 @@ public class CueStick implements GameObject {
     private double tableWidth, tableHeight;
     private GameRules gameRules;
     private boolean arcadeMode = false;
+    private double pullbackDistance = 0;
 
     // --- State Aiming (Status Bidikan) ---
     private boolean isAiming = false;       // Apakah pemain sedang menahan klik mouse?
@@ -37,6 +39,8 @@ public class CueStick implements GameObject {
     // Jarak tarik mouse yang dianggap sebagai kekuatan penuh (pixel)
     private static final double MAX_DRAG_DISTANCE = 300.0;
 
+    private final Image stickImage;
+
     /**
      * Konstruktor CueStick.
      *
@@ -45,12 +49,13 @@ public class CueStick implements GameObject {
      * @param tableW   Lebar meja (untuk prediksi pantulan dinding).
      * @param tableH   Tinggi meja.
      */
-    public CueStick(CueBall cueBall, List<Ball> allBalls, double tableW, double tableH, GameRules rules) {
+    public CueStick(CueBall cueBall, List<Ball> allBalls, double tableW, double tableH, GameRules rules, Image stickImage) {
         this.cueBall = cueBall;
         this.allBalls = allBalls;
         this.tableWidth = tableW;
         this.tableHeight = tableH;
-        this.gameRules = rules; // Simpan rules
+        this.gameRules = rules;
+        this.stickImage = stickImage;
     }
 
     public void setArcadeMode(boolean isArcade) {
@@ -69,40 +74,39 @@ public class CueStick implements GameObject {
      */
     @Override
     public void draw(GraphicsContext gc) {
+        // Cek 1: Jangan gambar jika bola masih bergerak
         if (!areAllBallsStopped()) return;
+
+        // Cek 2: Pastikan gambar sudah diload
+        if (stickImage == null) return;
 
         // 1. Tentukan Sudut Bidikan
         double angleRad;
 
         if (!isAiming) {
             // MODE MEMBIDIK (HOVER)
-            // Hitung jarak mouse dari bola
             double dx = mousePos.getX() - cueBall.getPosition().getX();
             double dy = mousePos.getY() - cueBall.getPosition().getY();
 
-            // --- CORE LOGIC FIX ---
-            // Math.atan2(dy, dx) = Sudut MURNI dari Bola ke Mouse.
-            // Kita tambah Math.PI (180 derajat) agar stik berada di SEBERANG Mouse.
-            // Hasil: Mouse di Kanan (Target) -> Stik muncul di Kiri (Siap pukul).
+            // Sudut MURNI dari Bola ke Mouse + 180 derajat (PI)
+            // Hasil: Stik berada di SEBERANG Mouse (posisi memukul)
             angleRad = Math.atan2(dy, dx) + Math.PI;
 
-            lockedAngleRad = angleRad; // Simpan sudut terakhir
+            lockedAngleRad = angleRad; // Simpan untuk mode drag nanti
         } else {
-            // MODE MENARIK (DRAG)
-            // Sudut dikunci, tidak berubah meskipun mouse gerak kiri-kanan
+            // MODE MENARIK (DRAG) - Sudut dikunci
             angleRad = lockedAngleRad;
         }
 
         // 2. Gambar Garis Prediksi (Raycast)
-        // Arah tembakan adalah KEBALIKAN dari posisi stik.
-        // Posisi Stik = angleRad.
-        // Arah Tembak = angleRad + PI (180 derajat lagi) = Kembali ke arah Mouse.
+        // Arah tembakan = Kebalikan posisi stik (kembali ke arah mouse)
         double shootAngle = angleRad + Math.PI;
         Vector2D shootDir = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
 
+        // Pastikan method drawPredictionRay sudah ada (atau pakai garis simple)
         drawPredictionRay(gc, cueBall.getPosition(), shootDir);
 
-        // 3. Gambar Stik Fisik
+        // 3. Gambar Stik Fisik (Menggunakan Gambar Assets)
         drawStickVisual(gc, angleRad);
     }
 
@@ -227,32 +231,62 @@ public class CueStick implements GameObject {
      * Stik digambar dengan rotasi sesuai sudut bidikan dan posisi mundur sesuai tarikan mouse.
      */
     private void drawStickVisual(GraphicsContext gc, double angleRad) {
-        double angleDeg = Math.toDegrees(angleRad);
-        double pullDistance = 20; // Jarak default dari bola
+        // --- 1. SETTING UKURAN ---
+        // Tentukan panjang stik yang diinginkan di layar (misal 500 pixel biar panjang)
+        double targetLength = 550.0;
 
-        // Jika sedang membidik, stik mundur sesuai jarak tarik mouse
-        if (isAiming) {
-            double dragDist = aimStart.subtract(aimCurrent).length();
-            pullDistance = Math.min(dragDist, MAX_PULL);
+        // --- 2. HITUNG KETEBALAN OTOMATIS (ASPECT RATIO) ---
+        // Ini kuncinya: Biarkan program menghitung ketebalan berdasarkan gambar asli
+        // agar stik tidak terlihat "gepeng" atau "terlalu tipis".
+        double originalWidth = 1.0;
+        double originalHeight = 1.0;
+
+        if (stickImage != null) {
+            originalWidth = stickImage.getWidth();
+            originalHeight = stickImage.getHeight() / 1.5; // Karena gambar berisi 2 bagian (handle + tip)
         }
 
-        gc.save();
-        // Pindahkan titik asal (0,0) ke pusat bola putih untuk memudahkan rotasi
+        // Rumus: Skala = Panjang Target / Lebar Asli
+        double scale = targetLength / originalWidth;
+
+        // Ketebalan baru mengikuti skala tersebut
+        double drawWidth = targetLength;
+        double drawHeight = originalHeight * scale;
+
+        // OPTIONAL: Jika masih merasa kurang tebal, Anda bisa menambahkan pengali manual
+        // Contoh: drawHeight = originalHeight * scale * 1.5; (tapi biasanya ratio asli sudah cukup)
+
+
+        // --- 3. HITUNG POSISI JARAK (OFFSET) ---
+        // Jarak ujung stik dari pusat bola + animasi tarik mundur (pullback)
+        double distFromBall = cueBall.getRadius() + 10 + this.pullbackDistance;
+
+        gc.save(); // Simpan state asli
+
+        // A. Pindahkan titik 0,0 ke PUSAT BOLA PUTIH
         gc.translate(cueBall.getPosition().getX(), cueBall.getPosition().getY());
-        gc.rotate(angleDeg);
 
-        double stickLen = 300;
-        double stickWidth = 8;
-        double tipOffset = cueBall.getRadius() + pullDistance;
+        // B. ROTASI
+        gc.rotate(Math.toDegrees(angleRad));
 
-        // Gambar Batang Kayu
-        gc.setFill(Color.SADDLEBROWN);
-        gc.fillRect(tipOffset, -stickWidth/2, stickLen, stickWidth);
-        // Gambar Ujung Stik (Tip)
-        gc.setFill(Color.CYAN);
-        gc.fillRect(tipOffset, -stickWidth/2, 5, stickWidth);
+        // C. POSISI GAMBAR
+        // Kita geser X sejauh distFromBall.
+        // Kita geser Y sejauh setengah ketebalan stik (agar center).
 
-        gc.restore();
+        double drawX = distFromBall;
+        double drawY = -drawHeight / 2.08;
+
+        // --- 4. GAMBAR ---
+        if (stickImage != null) {
+            // Gambar dengan ukuran yang sudah dihitung rasionya
+            gc.drawImage(stickImage, drawX, drawY, drawWidth, drawHeight);
+        } else {
+            // Fallback jika gambar error
+            gc.setFill(Color.SADDLEBROWN);
+            gc.fillRect(drawX, drawY, drawWidth, 20);
+        }
+
+        gc.restore(); // Balikin state
     }
 
     // --- UPDATE HANDLERS: Terima koordinat langsung ---
@@ -268,9 +302,31 @@ public class CueStick implements GameObject {
         aimCurrent = new Vector2D(x, y);
     }
 
-    public void handleMouseDragged(double x, double y) {
-        if (!isAiming) return;
-        aimCurrent = new Vector2D(x, y);
+    public void handleMouseDragged(double mouseX, double mouseY) {
+        if (isAiming) {
+            aimCurrent = new Vector2D(mouseX, mouseY);
+
+            // 1. Hitung Vektor Arah Bidikan (Aim Direction)
+            // Arah pukulan (Aim) adalah kebalikan dari stik (lockedAngleRad + PI)
+            double shootAngle = lockedAngleRad;
+            Vector2D direction = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
+
+            // 2. Hitung Vektor Tarikan Mouse (Drag Vector)
+            Vector2D dragVector = aimCurrent.subtract(aimStart);
+
+            // 3. Proyeksikan Vektor Tarikan ke Arah Bidikan
+            // Ini memastikan tarikan hanya dihitung sepanjang garis lurus ke belakang
+            double dragDist = dragVector.dot(direction);
+
+            // 4. Batasi Jarak Tarik (Clamp)
+            // Jangan sampai negatif (mendorong) atau melebihi batas maksimum
+            dragDist = Math.max(0, dragDist);
+            dragDist = Math.min(dragDist, MAX_DRAG_DISTANCE);
+
+            // 5. SET JARAK MUNDUR
+            // Gunakan jarak yang sudah diproyeksikan dan dibatasi
+            this.pullbackDistance = dragDist; // <--- Variabel ini yang menggerakkan stik
+        }
     }
 
     public void handleMouseReleased(double x, double y) {
@@ -298,6 +354,7 @@ public class CueStick implements GameObject {
             cueBall.hit(direction.multiply(finalForce));
         }
         isAiming = false;
+        this.pullbackDistance = 0;
     }
 
     // Helper: Cek apakah SEMUA bola (putih + warna) sudah berhenti
