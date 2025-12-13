@@ -91,6 +91,9 @@ public class BilliardApp extends Application {
     
     // --- INPUT HANDLING ---
     private InputHandler inputHandler;
+    
+    // --- GAME CONTROLLER ---
+    private GameController gameController;
 
     // --- SCENE MANAGEMENT ---
     private Stage primaryStage;
@@ -104,9 +107,8 @@ public class BilliardApp extends Application {
             // 1. Inisialisasi Objek Preferences
             prefs = Preferences.userNodeForPackage(BilliardApp.class);
 
-            // 2. LOAD SCORE LAMA (Ini yang bikin Best Score kamu 0 terus sebelumnya)
-            // Ambil data "arcade_highscore", kalau tidak ada, isi dengan 0
-            highScore = prefs.getInt(PREF_KEY_HIGH_SCORE, 0);
+            // 2. High score will be loaded by GameController
+            // (Moved to avoid duplication)
 
         } catch (Exception e) {
             System.err.println("Gagal load preferences: " + e.getMessage());
@@ -136,22 +138,59 @@ public class BilliardApp extends Application {
         if (gameOverOverlay != null) gameOverOverlay.setVisible(false);
         if (pauseOverlay != null) pauseOverlay.setVisible(false);
 
-        // 1. Reset State Arcade
+        // 1. Reset State Variables
         arcadeTimer = ARCADE_START_TIME;
         isArcadeGameOver = false;
+        currentTurnTime = TURN_TIME_LIMIT; // CRITICAL FIX: Reset shot timer
+        turnInProgress = false;
 
-        // 2. Bersihkan Data Lama
+        // 2. Reset Rules FIRST (CRITICAL: Must be before initializeGameObjects!)
+        gameRules.resetGame();
+
+        // 3. Bersihkan Data Lama
         gameObjects.clear();
         pocketHistory.clear();
         floatingTexts.clear();
 
-        // 3. Reset Physics Engine Score (Penting!)
-        // Kita buat instance baru atau reset manual score di dalamnya
-        // Cara paling aman: Re-initialize semuanya
+        // 4. Re-initialize game objects (now gameRules is already reset)
         initializeGameObjects();
-
-        // 4. Reset Rules (Jika main 8-Ball)
-        gameRules.resetGame();
+        
+        // 5. RECREATE GameController with new objects (CRITICAL FIX!)
+        // GameController must be recreated because initializeGameObjects() created new instances
+        // of cueStick, cueBall, physicsEngine, etc. Old GameController has stale references.
+        gameController = new GameController(
+            gameObjects, cueStick, cueBall, gameRules, physicsEngine,
+            floatingTexts, pocketHistory, is8BallMode, prefs
+        );
+        gameController.setCallbacks(
+            this::respawnArcadeRack,
+            new GameController.GameOverCallback() {
+                @Override
+                public void showGameOver(String title, Color titleColor, String message) {
+                    if (!gameOverOverlay.isVisible()) {
+                        gameOverTitle.setText(title);
+                        gameOverTitle.setFill(titleColor);
+                        gameOverMessage.setText(message);
+                        gameOverOverlay.setVisible(true);
+                    }
+                }
+                
+                @Override
+                public void hideGameOver() {
+                    if (gameOverOverlay.isVisible()) {
+                        gameOverOverlay.setVisible(false);
+                    }
+                }
+            }
+        );
+        highScore = gameController.getHighScore();
+        
+        // 6. Update InputHandler with new objects (CRITICAL FIX!)
+        if (inputHandler != null) {
+            inputHandler.setCueStick(this.cueStick);
+            inputHandler.setCueBall(this.cueBall);
+            inputHandler.setGameRules(this.gameRules);
+        }
     }
 
     /**
@@ -434,14 +473,44 @@ public class BilliardApp extends Application {
         gameRules = new GameRules();
         initializeGameObjects();
         
-        // 6. Setup InputHandler
+        // 6. Setup GameController
+        gameController = new GameController(
+            gameObjects, cueStick, cueBall, gameRules, physicsEngine,
+            floatingTexts, pocketHistory, is8BallMode, prefs
+        );
+        gameController.setCallbacks(
+            this::respawnArcadeRack,
+            new GameController.GameOverCallback() {
+                @Override
+                public void showGameOver(String title, Color titleColor, String message) {
+                    if (!gameOverOverlay.isVisible()) {
+                        gameOverTitle.setText(title);
+                        gameOverTitle.setFill(titleColor);
+                        gameOverMessage.setText(message);
+                        gameOverOverlay.setVisible(true);
+                    }
+                }
+                
+                @Override
+                public void hideGameOver() {
+                    if (gameOverOverlay.isVisible()) {
+                        gameOverOverlay.setVisible(false);
+                    }
+                }
+            }
+        );
+        
+        // Load high score from GameController
+        highScore = gameController.getHighScore();
+        
+        // 7. Setup InputHandler
         inputHandler = new InputHandler(cueStick, cueBall, gameRules, gameObjects, is8BallMode);
         inputHandler.setCallbacks(
             this::togglePause,
             this::debugClearTable
         );
         
-        // 7. INPUT HANDLING - Delegate to InputHandler
+        // 8. INPUT HANDLING - Delegate to InputHandler
         canvas.setOnMouseMoved(e -> {
             updateOffsets();
             inputHandler.updateState(isGamePaused, isArcadeGameOver, currentOffsetX, currentOffsetY);
@@ -466,7 +535,7 @@ public class BilliardApp extends Application {
             inputHandler.handleMouseReleased(e);
         });
 
-        // 8. Setup Scene & Keyboard
+        // 9. Setup Scene & Keyboard
         Scene gameScene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
         gameScene.setFill(Color.BLACK); // Background hitam di belakang canvas
 
@@ -520,11 +589,36 @@ public class BilliardApp extends Application {
             cueBall.setPosition(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0));
             cueBall.setVelocity(new Vector2D(0, 0));
             
-            // 4. Spawn rack baru
+            // 4. Trigger table clear bonus BEFORE respawn (untuk arcade mode)
+            if (!is8BallMode && gameController != null) {
+                // Manually trigger table clear bonus in GameController
+                double stageBonusTime = 30.0;
+                int stageBonusScore = 500;
+                
+                gameController.setArcadeTimer(gameController.getArcadeTimer() + stageBonusTime);
+                physicsEngine.modifyArcadeScore(stageBonusScore);
+                
+                // Add floating texts
+                double cx = (GAME_WIDTH/2) + currentOffsetX;
+                double cy = (GAME_HEIGHT/2) + currentOffsetY;
+                floatingTexts.add(new FloatingText(cx, cy - 40, "TABLE CLEARED!", Color.CYAN));
+                floatingTexts.add(new FloatingText(cx, cy, "+" + stageBonusScore + " pts", Color.GOLD));
+                floatingTexts.add(new FloatingText(cx, cy + 40, "+" + (int)stageBonusTime + "s", Color.LIME));
+            }
+            
+            // 5. Spawn rack baru
             respawnArcadeRack();
             
-            // 5. Reset turn state agar cue stick bisa digunakan
+            // 6. Reset turn state agar cue stick bisa digunakan
             turnInProgress = false;
+            
+            // 7. Sync state to GameController
+            if (gameController != null) {
+                gameController.setTurnInProgress(false);
+            }
+            
+            // 8. Reset physics report AFTER processing
+            physicsEngine.resetTurnReport();
         }
     }
 
@@ -648,263 +742,25 @@ public class BilliardApp extends Application {
             // GAMBAR UI TAMBAHAN
             gameUIRenderer.drawPauseButton(mainGC, PAUSE_BTN_X, PAUSE_BTN_Y); // Tombol selalu terlihat
 
-            // --- JIKA PAUSE, STOP LOGIC DI BAWAH INI ---
-            if (isGamePaused) {
-                return; // Skip update fisika & rules
-            }
-
-            // 1. UPDATE FISIKA
-            // Hanya update fisika jika TIDAK sedang menaruh bola (biar ga gerak2 sendiri)
-            if (!(is8BallMode && gameRules.isBallInHand())) {
-                int subSteps = 4;
-                double subDeltaTime = deltaTime / subSteps;
-                for (int step = 0; step < subSteps; step++) {
-                    for (GameObject obj : gameObjects) {
-                        obj.update(subDeltaTime);
-                    }
-                }
-            }
-            cueStick.update(deltaTime); // Stik update (animasi idle dll)
-
-            // --- UPDATE LOGIC SHOT TIMER ---
-            if (is8BallMode && !gameRules.isGameOver()) {
-                // Timer hanya jalan jika:
-                // 1. Bola semua diam (fase membidik)
-                // 2. Tidak sedang menaruh bola (Ball in Hand placement mode pause dulu biar ga panik)
-                boolean isAimingPhase = cueStick.areAllBallsStopped();
-                boolean isPlacingMode = gameRules.isBallInHand();
-
-                if (isAimingPhase && !isPlacingMode) {
-                    currentTurnTime -= deltaTime;
-
-                    // JIKA WAKTU HABIS (TIME FOUL)
-                    if (currentTurnTime <= 0) {
-                        // Reset Timer
-                        currentTurnTime = TURN_TIME_LIMIT;
-
-                        // Panggil Rule: Time Foul
-                        // Kita bisa pakai handleFoul lewat method helper atau public access
-                        // Karena handleFoul private, kita trigger via switchTurn manual atau bikin method public baru.
-                        // Solusi Cepat: Kita paksa ganti giliran & kasih ball in hand via GameRules logic.
-
-                        // PENTING: Kita harus buat method public 'triggerTimeFoul' di GameRules dulu
-                        // Tapi untuk sekarang, kita anggap GameRules punya method itu.
-                        gameRules.triggerTimeFoul();
-                    }
-                }
-            } else if (!is8BallMode && !isArcadeGameOver) {
-                // Kurangi waktu setiap frame
-                arcadeTimer -= deltaTime;
-
-                // Cek Game Over (Waktu Habis)
-                if (arcadeTimer <= 0) {
-                    arcadeTimer = 0;
-                    isArcadeGameOver = true;
-                    // Kita akan handle tampilan game over nanti di HUD
-                }
-            }
-
-            if (!is8BallMode) {
-                int currentScore = physicsEngine.getArcadeScore();
-                if (currentScore > highScore) {
-                    highScore = currentScore;
-
-                    // --- PERBAIKAN 2: Safety Check & Save ---
-                    try {
-                        // Jaga-jaga: Jika prefs tiba-tiba null (penyebab error kamu), kita isi lagi
-                        if (prefs == null) {
-                            prefs = Preferences.userNodeForPackage(BilliardApp.class);
-                        }
-
-                        // Simpan ke Registry
-                        if (prefs != null) {
-                            prefs.putInt(PREF_KEY_HIGH_SCORE, highScore);
-                            prefs.flush(); // Paksa simpan sekarang juga
-                        }
-                    } catch (Exception e) {
-                        System.err.println("Gagal save score: " + e.getMessage());
-                    }
-                }
-            }
-
-            if (!is8BallMode && cueBall.isPendingRespawn()) {
-                // Syarat: Tunggu bola lain berhenti dulu biar tidak chaos
-                if (cueStick.areAllBallsStopped()) {
-                    cueBall.setPosition(new Vector2D(GAME_WIDTH / 4.0, GAME_HEIGHT / 2.0));
-                    cueBall.setVelocity(new Vector2D(0, 0));
-                    cueBall.setPendingRespawn(false); // Matikan flag
-                    cueBall.setActive(true);          // Munculkan bola
-                }
-            }
-
-            // 2. LOGIC TURN
-            checkGameOverState();
-            checkGameRules();
+            // DELEGATE GAME LOGIC TO GAME CONTROLLER
+            gameController.update(deltaTime, isGamePaused, currentOffsetX, currentOffsetY);
+            
+            // SYNC STATE FROM GAME CONTROLLER
+            arcadeTimer = gameController.getArcadeTimer();
+            currentTurnTime = gameController.getCurrentTurnTime();
+            highScore = gameController.getHighScore();
+            isArcadeGameOver = gameController.isArcadeGameOver();
+            turnInProgress = gameController.isTurnInProgress();
         }
+        
+        // ==================== OLD GAME LOOP METHODS REMOVED ====================
+        // The following methods have been extracted to GameController.java:
+        // - checkGameOverState(), checkGameRules(), processTurnEnd()
+        // All physics update, timer logic, and turn management now in GameController
+        // =======================================================================
+    }
 
-        private void checkGameOverState() {
-            boolean isFinished = false;
-            String titleText = "";
-            Color titleColor = Color.WHITE;
-            String msgText = "";
-
-            if (is8BallMode && gameRules.isGameOver()) {
-                isFinished = true;
-                if (gameRules.isCleanWin()) {
-                    titleText = "YOU WIN!";
-                    titleColor = Color.LIME;
-                } else {
-                    titleText = "GAME OVER";
-                    titleColor = Color.RED;
-                }
-                msgText = gameRules.getStatusMessage();
-            }
-            else if (!is8BallMode && isArcadeGameOver) {
-                isFinished = true;
-                titleText = "TIME'S UP!";
-                titleColor = Color.ORANGE;
-                msgText = "FINAL SCORE: " + physicsEngine.getArcadeScore();
-            }
-
-            // Trigger Overlay jika belum muncul
-            if (isFinished && !gameOverOverlay.isVisible()) {
-                gameOverTitle.setText(titleText);
-                gameOverTitle.setFill(titleColor);
-                gameOverMessage.setText(msgText);
-
-                gameOverOverlay.setVisible(true);
-                // Kita tidak stop loop agar background game masih ter-render di belakang overlay
-            }
-
-            // Jika restart (overlay msh aktif tapi game sudah reset), sembunyikan
-            if (!isFinished && gameOverOverlay.isVisible()) {
-                gameOverOverlay.setVisible(false);
-            }
-        }
-
-        private void checkGameRules() {
-            boolean anyBallMoving = !cueStick.areAllBallsStopped();
-
-            if (anyBallMoving) {
-                turnInProgress = true;
-            }
-            else if (turnInProgress) {
-                processTurnEnd();
-                turnInProgress = false;
-            }
-        }
-
-        private void processTurnEnd() {
-            if (is8BallMode) {
-                List<ObjectBall> potted = physicsEngine.getPocketedBalls();
-
-                for (ObjectBall b : potted) {
-                    pocketHistory.add(b.getNumber());
-                }
-
-                boolean foul = physicsEngine.isCueBallPocketed();
-                Ball firstHit = physicsEngine.getFirstHitBall();
-
-                List<Ball> remaining = new ArrayList<>();
-                for (GameObject obj : gameObjects) {
-                    if (obj instanceof Ball && ((Ball) obj).isActive()) {
-                        remaining.add((Ball) obj);
-                    }
-                }
-
-                if (!gameRules.isGameOver()) {
-                    gameRules.processTurn(potted, foul, remaining, firstHit);
-
-                    currentTurnTime = TURN_TIME_LIMIT;
-                    // CEK KHUSUS: Apakah sekarang Ball In Hand?
-                    if (gameRules.isBallInHand()) {
-                        // Jika Cue Ball masuk (Scratch), dia mati (active=false).
-                        // Kita harus HIDUPKAN LAGI agar bisa didrag.
-                        if (!cueBall.isActive()) {
-                            cueBall.setActive(true);
-                            cueBall.setPendingRespawn(false);
-                            // Set posisi default sementara sebelum didrag user
-                            cueBall.setPosition(new Vector2D(GAME_WIDTH/4, GAME_HEIGHT/2));
-                            cueBall.setVelocity(new Vector2D(0,0));
-                        }
-                    }
-                }
-
-                physicsEngine.resetTurnReport();
-            } else {
-                // --- ARCADE MODE (TIME ATTACK) ---
-
-                List<ObjectBall> potted = physicsEngine.getPocketedBalls();
-                boolean isFoul = physicsEngine.isCueBallPocketed();
-
-                // 1. HITUNG SCORE & WAKTU (BOLA WARNA)
-                if (!potted.isEmpty()) {
-                    double timeBonus = potted.size() * TIME_BONUS_PER_BALL;
-                    int scoreBonus = potted.size() * 10; // Hitung total poin (10 per bola)
-
-                    arcadeTimer += timeBonus;
-
-                    // Koordinat Spawn (Tengah Meja acak dikit)
-                    double spawnX = (GAME_WIDTH / 2) + currentOffsetX + (Math.random() * 40 - 20);
-                    double spawnY = (GAME_HEIGHT / 2) + currentOffsetY;
-
-                    // A. Teks Waktu (Warna Hijau)
-                    floatingTexts.add(new FloatingText(spawnX, spawnY, "+" + (int)timeBonus + "s", Color.LIME));
-
-                    // B. Teks Skor (Warna Emas) - TAMBAHAN BARU
-                    // Kita munculkan sedikit di bawah teks waktu (+30px y)
-                    floatingTexts.add(new FloatingText(spawnX, spawnY + 30, "+" + scoreBonus + " pts", Color.GOLD));
-                }
-
-                // 2. HITUNG PENALTI (FOUL)
-                if (isFoul) {
-                    // A. Penalti Waktu
-                    arcadeTimer -= TIME_PENALTY_FOUL;
-                    if (arcadeTimer < 0) arcadeTimer = 0;
-
-                    // B. Penalti Skor (IMPLEMENTASI BARU)
-                    physicsEngine.modifyArcadeScore(-10); // Kurangi 10 poin
-
-                    // C. Efek Teks
-                    double spawnX = (GAME_WIDTH / 2) + currentOffsetX;
-                    double spawnY = (GAME_HEIGHT / 2) + currentOffsetY;
-                    floatingTexts.add(new FloatingText(spawnX, spawnY, "-10s & -10pts", Color.RED));
-
-                    // D. SET FLAG RESPAWN (CRITICAL FIX)
-                    cueBall.setActive(false); // Pastikan mati dulu
-                    cueBall.setPendingRespawn(true); // Minta hidup lagi
-                    cueBall.setVelocity(new Vector2D(0,0)); // Stop gerak
-                }
-
-                // 3. Update History
-                for (ObjectBall b : potted) {
-                    pocketHistory.add(b.getNumber());
-                }
-
-                if (countActiveObjectBalls() == 0) {
-                    // BERIKAN BONUS BESAR
-                    double stageBonusTime = 30.0;
-                    int stageBonusScore = 500;
-
-                    arcadeTimer += stageBonusTime;
-                    physicsEngine.modifyArcadeScore(stageBonusScore);
-
-                    // Efek Teks Besar di Tengah
-                    double cx = (GAME_WIDTH/2) + currentOffsetX;
-                    double cy = (GAME_HEIGHT/2) + currentOffsetY;
-                    floatingTexts.add(new FloatingText(cx, cy - 40, "TABLE CLEARED!", Color.CYAN));
-                    floatingTexts.add(new FloatingText(cx, cy, "+" + stageBonusScore + " pts", Color.GOLD));
-                    floatingTexts.add(new FloatingText(cx, cy + 40, "+" + (int)stageBonusTime + "s", Color.LIME));
-
-                    // RESPAWN RACK (Refill Bola)
-                    respawnArcadeRack();
-                }
-
-                physicsEngine.resetTurnReport();
-            }
-        }
-
-        private void renderGame() {
+    private void renderGame() {
             double scrW = canvas.getWidth();
             double scrH = canvas.getHeight();
 
@@ -1047,7 +903,6 @@ public class BilliardApp extends Application {
             // Gambar Power Bar (Selalu Muncul)
             gameUIRenderer.drawPowerBar(mainGC, canvas.getHeight(), cueStick.getPowerRatio());
         }
-    }
 
     // ==================== OLD RENDERING METHODS REMOVED ====================
     // The following methods have been extracted to GameUIRenderer.java and HUDRenderer.java:
@@ -1056,17 +911,9 @@ public class BilliardApp extends Application {
     // - drawPauseButton(), drawPauseMenu()
     // =======================================================================
 
-    private int countActiveObjectBalls() {
-        int count = 0;
-        for (GameObject obj : gameObjects) {
-            if (obj instanceof ObjectBall) {
-                if (((ObjectBall) obj).isActive()) {
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
+    // ==================== countActiveObjectBalls() REMOVED ====================
+    // This method has been extracted to GameController.java
+    // ==========================================================================
 
     private void respawnArcadeRack() {
         // 1. Hapus semua ObjectBall yang ada di list gameObjects

@@ -61,6 +61,20 @@ public class InputHandler {
     }
     
     /**
+     * Update cue ball reference (needed when game is restarted).
+     */
+    public void setCueBall(CueBall cueBall) {
+        this.cueBall = cueBall;
+    }
+    
+    /**
+     * Update game rules reference (needed when game is restarted).
+     */
+    public void setGameRules(GameRules gameRules) {
+        this.gameRules = gameRules;
+    }
+    
+    /**
      * Update game state flags (called each frame).
      */
     public void updateState(boolean isGamePaused, boolean isArcadeGameOver, 
