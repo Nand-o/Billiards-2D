@@ -1,5 +1,9 @@
-package com.billiards2d;
+package com.billiards2d.game;
 
+import com.billiards2d.entities.balls.Ball;
+import com.billiards2d.entities.balls.BallType;
+import com.billiards2d.entities.balls.CueBall;
+import com.billiards2d.entities.balls.ObjectBall;
 import java.util.List;
 
 /**

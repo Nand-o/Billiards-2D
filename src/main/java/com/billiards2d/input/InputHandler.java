@@ -1,12 +1,18 @@
-package com.billiards2d;
+package com.billiards2d.input;
 
+import com.billiards2d.core.GameObject;
+import com.billiards2d.entities.balls.Ball;
+import com.billiards2d.entities.balls.CueBall;
+import com.billiards2d.entities.CueStick;
+import com.billiards2d.game.GameRules;
+import com.billiards2d.util.Vector2D;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 
 import java.util.List;
 
-import static com.billiards2d.GameConstants.*;
+import static com.billiards2d.core.GameConstants.*;
 
 /**
  * Handles all user input (mouse and keyboard events) for the billiard game.

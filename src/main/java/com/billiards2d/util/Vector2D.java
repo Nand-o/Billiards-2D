@@ -1,4 +1,4 @@
-package com.billiards2d;
+package com.billiards2d.util;
 
 /**
  * Kelas utilitas untuk merepresentasikan vektor matematika 2 dimensi (x, y).

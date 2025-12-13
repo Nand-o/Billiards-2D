@@ -1,4 +1,4 @@
-package com.billiards2d;
+package com.billiards2d.ui;
 
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;

@@ -1,7 +1,12 @@
-package com.billiards2d;
+package com.billiards2d.ui;
 
-import static com.billiards2d.GameConstants.*;
+import static com.billiards2d.core.GameConstants.*;
 
+import com.billiards2d.entities.balls.Ball;
+import com.billiards2d.entities.balls.BallType;
+import com.billiards2d.entities.balls.CueBall;
+import com.billiards2d.entities.balls.ObjectBall;
+import com.billiards2d.game.GameRules;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
 import javafx.scene.paint.Color;

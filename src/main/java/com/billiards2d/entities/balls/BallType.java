@@ -1,4 +1,4 @@
-package com.billiards2d;
+package com.billiards2d.entities.balls;
 
 /**
  * Enum untuk mengkategorikan jenis bola biliar.

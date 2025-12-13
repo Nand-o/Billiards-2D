@@ -1,4 +1,4 @@
-package com.billiards2d;
+package com.billiards2d.core;
 
 /**
  * Kelas konstanta untuk menyimpan semua nilai konfigurasi game.
@@ -46,7 +46,7 @@ public final class GameConstants {
     // ==========================================
 
     /** Koefisien friction (decay per frame) */
-    public static final double FRICTION_POWER = 0.992;
+    public static final double FRICTION_POWER = 0.9882;
 
     /** Koefisien restitusi dinding (elastisitas pantulan) */
     public static final double WALL_RESTITUTION = 0.9;

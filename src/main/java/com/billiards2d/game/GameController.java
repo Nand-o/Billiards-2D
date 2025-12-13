@@ -1,5 +1,13 @@
-package com.billiards2d;
+package com.billiards2d.game;
 
+import com.billiards2d.core.GameObject;
+import com.billiards2d.entities.balls.Ball;
+import com.billiards2d.entities.balls.CueBall;
+import com.billiards2d.entities.balls.ObjectBall;
+import com.billiards2d.entities.CueStick;
+import com.billiards2d.entities.Table;
+import com.billiards2d.ui.FloatingText;
+import com.billiards2d.util.Vector2D;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 
@@ -7,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.prefs.Preferences;
 
-import static com.billiards2d.GameConstants.*;
+import static com.billiards2d.core.GameConstants.*;
 
 /**
  * Controls the main game loop logic including physics updates, turn management,

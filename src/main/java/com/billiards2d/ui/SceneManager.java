@@ -1,5 +1,7 @@
-package com.billiards2d;
+package com.billiards2d.ui;
 
+import com.billiards2d.core.GameObject;
+import com.billiards2d.game.GameRules;
 import javafx.animation.AnimationTimer;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -23,7 +25,7 @@ import javafx.stage.Stage;
 import java.util.List;
 import java.util.prefs.Preferences;
 
-import static com.billiards2d.GameConstants.*;
+import static com.billiards2d.core.GameConstants.*;
 
 /**
  * Manages scene creation and transitions for the billiard game.

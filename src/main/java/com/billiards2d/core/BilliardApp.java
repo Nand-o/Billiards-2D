@@ -1,7 +1,21 @@
-package com.billiards2d;
+package com.billiards2d.core;
 
-import static com.billiards2d.GameConstants.*;
+import static com.billiards2d.core.GameConstants.*;
 
+import com.billiards2d.entities.balls.Ball;
+import com.billiards2d.entities.balls.CueBall;
+import com.billiards2d.entities.balls.ObjectBall;
+import com.billiards2d.entities.CueStick;
+import com.billiards2d.entities.Table;
+import com.billiards2d.game.GameController;
+import com.billiards2d.game.GameRules;
+import com.billiards2d.game.PhysicsEngine;
+import com.billiards2d.input.InputHandler;
+import com.billiards2d.ui.FloatingText;
+import com.billiards2d.ui.GameUIRenderer;
+import com.billiards2d.ui.HUDRenderer;
+import com.billiards2d.ui.SceneManager;
+import com.billiards2d.util.Vector2D;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.scene.Scene;

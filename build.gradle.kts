@@ -12,7 +12,7 @@ repositories {
 }
 
 application {
-    mainClass.set("com.billiards2d.BilliardApp")
+    mainClass.set("com.billiards2d.core.BilliardApp")
 }
 
 javafx {

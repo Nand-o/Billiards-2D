@@ -1,4 +1,4 @@
-package com.billiards2d;
+package com.billiards2d.core;
 
 import javafx.scene.canvas.GraphicsContext;
 
