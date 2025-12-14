@@ -1,12 +1,16 @@
-# 🎱 Billiards-2D
+# 🎱 Billiards-2D 
 
-Repository ini adalah implementasi tugas kelompok untuk mata kuliah **Desain dan Pemrograman Berbasis Objek (OOP)**. Tujuan proyek ini adalah membuat simulasi permainan billiard 2D dari awal.
+Implementasi permainan billiard 2D menggunakan JavaFX dengan simulasi fisika realistis dan antarmuka retro-arcade. Proyek ini dibuat sebagai tugas mata kuliah **Desain dan Pemrograman Berbasis Objek (OOP)** dengan menerapkan prinsip-prinsip OOP seperti inheritance, polymorphism, encapsulation, dan separation of concerns.
 
-> **Status:** Tahap Awal - Implementasi kerangka dasar dan GUI
+## Fitur Utama
 
----
+- **Dua Mode Permainan**: 8-Ball (kompetitif) dan Arcade (time-attack)
+- **Simulasi Fisika Realistis**: Collision detection, momentum transfer, dan friction
+- **Antarmuka Retro**: Pixel art, custom fonts, dan efek visual arcade
+- **High Score System**: Persistensi skor menggunakan Java Preferences API
+- **Dokumentasi Lengkap**: Javadoc berbahasa Indonesia untuk semua public API
 
-## 🛠️ Teknologi
+## Teknologi
 
 | Komponen | Teknologi | Versi |
 |----------|-----------|-------|
@@ -15,94 +19,133 @@ Repository ini adalah implementasi tugas kelompok untuk mata kuliah **Desain dan
 | **Build Tool** | Gradle (Kotlin DSL) | 8.14 |
 | **IDE** | IntelliJ IDEA | Community Edition |
 
----
-
-## 📁 Struktur Proyek
+## Struktur Proyek
 
 ```
 Billiards-2D/
-├── src/
-│   └── main/
-│       └── java/
-│           └── com/billiards2d/
-│               ├── BilliardApp.java      # Main class & Game loop
-│               ├── GameObject.java        # Interface polimorfisme
-│               ├── PhysicsEngine.java     # Engine simulasi fisika
-│               ├── Ball.java              # Abstract base class
-│               ├── CueBall.java           # Bola putih
-│               ├── ObjectBall.java        # Bola target
-│               ├── Table.java             # Meja billiard
-│               └── Vector2D.java          # Utilitas vektor
-├── build.gradle.kts            # Konfigurasi build & dependensi
-├── gradlew                     # Gradle wrapper (Linux/Mac)
-└── gradlew.bat                 # Gradle wrapper (Windows)
+├── src/main/java/com/billiards2d/
+│   ├── core/
+│   │   ├── BilliardApp.java          # Main application & JavaFX entry point
+│   │   ├── GameObject.java           # Interface untuk game entities
+│   │   └── GameConstants.java        # Konstanta konfigurasi global
+│   ├── entities/
+│   │   ├── balls/
+│   │   │   ├── Ball.java             # Abstract base class untuk bola
+│   │   │   ├── BallType.java         # Enum tipe bola (Solid/Stripe/8-Ball)
+│   │   │   ├── CueBall.java          # Bola putih (cue ball)
+│   │   │   └── ObjectBall.java       # Bola target (1-15)
+│   │   ├── CueStick.java             # Logika stik biliar
+│   │   └── Table.java                # Meja biliar & pocket detection
+│   ├── game/
+│   │   ├── GameController.java       # Game loop orchestrator
+│   │   ├── GameRules.java            # Aturan 8-Ball & Arcade
+│   │   └── PhysicsEngine.java        # Simulasi fisika & collision
+│   ├── input/
+│   │   └── InputHandler.java         # Mouse/keyboard input handler
+│   ├── ui/
+│   │   ├── SceneManager.java         # Manager scene (Menu/Game/GameOver)
+│   │   ├── GameUIRenderer.java       # Renderer utama game canvas
+│   │   ├── HUDRenderer.java          # Heads-up display (score, timer, dll)
+│   │   └── FloatingText.java         # Efek teks floating untuk feedback
+│   └── util/
+│       └── Vector2D.java             # Utilitas matematika vektor 2D
+├── src/main/resources/assets/        # Sprite, font, dan gambar
+├── build.gradle.kts                  # Konfigurasi build & dependensi
+└── gradlew / gradlew.bat             # Gradle wrapper
+
 ```
 
----
+## Arsitektur & Design Pattern
 
-## ☕ Yang Perlu Disiapkan
+Proyek ini menerapkan beberapa prinsip OOP dan design pattern:
 
-Sebelum menjalankan proyek, install dulu:
+- **Separation of Concerns**: Package terpisah untuk core, entities, game logic, input, dan UI
+- **Inheritance & Polymorphism**: Hierarchy `Ball` → `CueBall`/`ObjectBall`, interface `GameObject`
+- **Encapsulation**: Konstanta terpusat di `GameConstants`, state management di `GameController`
+- **Single Responsibility**: Setiap class memiliki tanggung jawab yang jelas dan terbatas
+- **MVC-like Pattern**: Pemisahan antara model (entities), controller (game logic), dan view (UI renderers)
 
-1. **Git** - Untuk clone repository
-2. **Java JDK 17 atau lebih baru**
-    - Download dari [Eclipse Temurin](https://adoptium.net/)
-    - Windows: Download installer `.msi`
-    - Linux: `sudo apt install openjdk-17-jdk` atau `sudo pacman -S jdk17-openjdk`
+## Prerequisites
 
-Cek apakah Java sudah terinstall:
-```bash
-java -version
-```
+Sebelum menjalankan proyek, pastikan telah terinstall:
 
-> **Catatan:** Gradle dan JavaFX akan didownload otomatis, tidak perlu install manual.
+1. **Java JDK 17 atau lebih baru**
+   - Download dari [Eclipse Temurin](https://adoptium.net/) atau [Oracle JDK](https://www.oracle.com/java/technologies/downloads/)
+   - Verifikasi instalasi: `java -version`
 
----
+2. **Git** (untuk clone repository)
 
-## ▶️ Cara Menjalankan Program
+> Gradle dan JavaFX akan diunduh otomatis oleh Gradle Wrapper saat pertama kali build.
 
-### Pakai IntelliJ IDEA (Paling Mudah)
+## Cara Menjalankan
 
-1. **Clone repository**
+### Menggunakan IntelliJ IDEA
+
+1. Clone repository:
    ```bash
-   git clone https://github.com/Billiards-2D/Billiards-2D.git
+   git clone https://github.com/Nand-o/Billiards-2D.git
    ```
 
-2. **Buka IntelliJ IDEA**
-    - Pilih **Open** (jangan "New Project")
-    - Pilih folder `Billiards-2D`
-    - Klik **Trust Project**
+2. Buka IntelliJ IDEA dan pilih **Open**, lalu pilih folder `Billiards-2D`
 
-3. **Tunggu proses download selesai**
-    - Lihat progress bar di pojok kanan bawah
-    - Gradle akan download JavaFX dan dependencies lainnya
-    - Biasanya 1-5 menit (tergantung internet)
+3. Tunggu IntelliJ mengunduh dependencies (terlihat di progress bar pojok kanan bawah)
 
-4. **Jalankan program**
-    - Klik tab **Gradle** di sisi kanan
-    - Buka: **Billiards-2D → Tasks → application → run**
-    - Double-click **run**
+4. Jalankan aplikasi melalui Gradle panel:
+   - Klik tab **Gradle** di sisi kanan
+   - Navigasi: **Billiards-2D → Tasks → application → run**
+   - Double-click **run**
 
-### Pakai Terminal/Command Line
+### Menggunakan Terminal
 
 ```bash
 # Clone repository
-git clone https://github.com/Billiards-2D/Billiards-2D.git
+git clone https://github.com/Nand-o/Billiards-2D.git
 cd Billiards-2D
 
-# Jalankan
-./gradlew run              # Linux/Mac
-gradlew.bat run            # Windows
+# Jalankan aplikasi (Windows)
+gradlew.bat run
+
+# Jalankan aplikasi (Linux/macOS)
+./gradlew run
 ```
 
----
+### Generate Javadoc
 
-## ⚠️ Kalau Ada Masalah
+```bash
+# Windows
+gradlew.bat javadoc
 
-**Program tidak jalan / Error JavaFX:**
-- Jangan run langsung dari `BilliardApp.java`
-- Gunakan Gradle panel: **Tasks → application → run**
+# Linux/macOS
+./gradlew javadoc
+```
+
+Dokumentasi akan tersedia di: `build/docs/javadoc/index.html`
+
+## Troubleshooting
+
+**Build gagal / JavaFX error:**
+- Pastikan menggunakan Gradle task `run`, jangan run langsung dari `BilliardApp.java`
+- Gradle akan otomatis menghandle JavaFX module path
 
 **Gradle sync error:**
-- Pastikan internet stabil
-- Coba: **File → Invalidate Caches → Invalidate and Restart**
+- Periksa koneksi internet (Gradle perlu download dependencies)
+- Coba: **File → Invalidate Caches → Invalidate and Restart** di IntelliJ
+
+**High DPI display issues:**
+- Set VM options: `-Dglass.gtk.uiScale=1.0` atau sesuaikan scaling
+
+## Kontributor
+
+Proyek ini dikembangkan oleh Kelompok 1 sebagai tugas mata kuliah OOP.
+
+Nama Anggota:
+| Nama Lengkap        | GitHub                        |
+|--------------------|-------------------------------|
+| Ernando Febrian     | [Ernando Febrian](https://github.com/Nand-o) |
+| Faris Maulana      | [bai](https://github.com/farismlna) |
+| Candra Afriansyah        | [Candra Afriansyah](https://github.com/CanLikez) |
+| Muhammad Yasyfi Alhafizh       | [Muhammad Yasyfi Alhafizh](https://github.com/noireveil) |
+
+## Lisensi
+
+Proyek ini dibuat untuk keperluan edukasi.
