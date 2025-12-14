@@ -185,7 +185,7 @@ public class SceneManager {
         VBox bottomBox = new VBox(5);
         bottomBox.setAlignment(Pos.CENTER);
 
-        Text creditText = new Text("CREDIT 012");
+        Text creditText = new Text("CREDIT 001");
         creditText.setFont(loadCustomFont("VCR_OSD_MONO_1.001.ttf", 24, "Courier New"));
         creditText.setFill(Color.WHITE);
         creditText.setEffect(new DropShadow(2, Color.BLACK));

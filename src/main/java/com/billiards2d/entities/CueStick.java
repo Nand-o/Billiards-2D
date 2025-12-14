@@ -227,14 +227,14 @@ public class CueStick implements GameObject {
             if (dir.dot(tangent) < 0) tangent = tangent.multiply(-1);
 
             gc.setLineDashes(null);
-            double predLen = 500.0;
+            double predLen = 50.0;
 
-            gc.setStroke(Color.RED);
+            gc.setStroke(Color.WHITE);
             gc.strokeLine(targetBall.getPosition().getX(), targetBall.getPosition().getY(),
                     targetBall.getPosition().getX() + collisionNormal.getX() * predLen,
                     targetBall.getPosition().getY() + collisionNormal.getY() * predLen);
 
-            gc.setStroke(Color.CYAN);
+            gc.setStroke(Color.WHITE);
             gc.strokeLine(hitPoint.getX(), hitPoint.getY(),
                     hitPoint.getX() + tangent.getX() * predLen,
                     hitPoint.getY() + tangent.getY() * predLen);

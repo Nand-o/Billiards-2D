@@ -47,7 +47,7 @@ public class Table implements GameObject {
     //          AREA TUNING (RACIKAN PRO)
     // ==========================================
 
-    private boolean debugMode = true;
+    private boolean debugMode = false;
 
     private List<Pocket> pockets;
     private static Image tableImage;
