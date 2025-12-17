@@ -1,9 +1,31 @@
-package com.billiards2d;
+package com.billiards2d.game;
 
+import static com.billiards2d.core.GameConstants.*;
+
+import com.billiards2d.core.GameObject;
+import com.billiards2d.entities.balls.Ball;
+import com.billiards2d.entities.balls.CueBall;
+import com.billiards2d.entities.balls.ObjectBall;
+import com.billiards2d.entities.Table;
+import com.billiards2d.util.Vector2D;
 import javafx.scene.canvas.GraphicsContext;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Mesin fisika sederhana untuk simulasi gerak dan tabrakan bola.
+ * <p>
+ * Tanggung jawab utama:
+ * - Memperbarui posisi/kecepatan bola berdasarkan integrasi sederhana.
+ * - Menangani pantulan dinding, restitusi (bounciness), dan friction.
+ * - Mendeteksi bola yang masuk pocket dan melaporkannya ke reporter.
+ * </p>
+ *
+ * Catatan: Kelas ini tidak melakukan rendering; hanya mengatur status fisik
+ * dari objek-objek permainan.
+ *
+ * @since 2025-12-13
+ */
 public class PhysicsEngine implements GameObject {
 
     private Table table;
@@ -18,35 +40,71 @@ public class PhysicsEngine implements GameObject {
     private boolean cueBallPocketed = false;
     private Ball firstHitBall = null;
 
+    /**
+     * Konstruktor untuk `PhysicsEngine`.
+     *
+     * @param table referensi ke meja permainan
+     * @param gameObjects daftar objek permainan yang akan disimulasikan (biasanya semua bola)
+     */
     public PhysicsEngine(Table table, List<GameObject> gameObjects) {
         this.table = table;
         this.gameObjects = gameObjects;
     }
 
     // Getter untuk BilliardApp mengambil data laporan
+    /**
+     * Ambil salinan list bola yang ter-pocket selama pukulan terakhir.
+     *
+     * @return list baru berisi `ObjectBall` yang ter-pocket pada turn terakhir
+     */
     public List<ObjectBall> getPocketedBalls() {
         return new ArrayList<>(pocketedBalls);
     }
 
+    /**
+     * Apakah bola putih (cue ball) ter-pocket pada pukulan terakhir.
+     *
+     * @return true jika cue ball ter-pocket
+     */
     public boolean isCueBallPocketed() {
         return cueBallPocketed;
     }
 
     // Getter untuk GameRules
+    /**
+     * Bola pertama yang tersentuh oleh cue ball pada pukulan terakhir.
+     * Digunakan untuk validasi aturan first-hit.
+     *
+     * @return instansi `Ball` yang pertama tersentuh, atau null jika tidak ada
+     */
     public Ball getFirstHitBall() {
         return firstHitBall;
     }
 
+    /**
+     * Reset laporan turn (pocketedBalls, cueBallPocketed, firstHitBall).
+     * Dipanggil saat memulai turn baru.
+     */
     public void resetTurnReport() {
         pocketedBalls.clear();
         cueBallPocketed = false;
         firstHitBall = null; // Reset setiap awal turn
     }
 
+    /**
+     * Ambil skor sementara untuk mode Arcade.
+     *
+     * @return nilai skor arcade saat ini
+     */
     public int getArcadeScore() {
         return arcadeScore;
     }
 
+    /**
+     * Update simulasi fisika untuk semua bola (dipanggil per frame).
+     *
+     * @param deltaTime waktu sejak frame terakhir (detik)
+     */
     @Override
     public void update(double deltaTime) {
         for (GameObject obj1 : gameObjects) {
@@ -111,18 +169,17 @@ public class PhysicsEngine implements GameObject {
         double vx = ball.getVelocity().getX();
         double vy = ball.getVelocity().getY();
         boolean collided = false;
-        double wallRestitution = 0.9;
 
         if (x - r < table.getWidth() && x - r < 0) { // Cek batas kiri (0)
-            x = r; vx = -vx * wallRestitution; collided = true;
+            x = r; vx = -vx * WALL_RESTITUTION; collided = true;
         } else if (x + r > table.getWidth()) {
-            x = table.getWidth() - r; vx = -vx * wallRestitution; collided = true;
+            x = table.getWidth() - r; vx = -vx * WALL_RESTITUTION; collided = true;
         }
 
         if (y - r < table.getHeight() && y - r < 0) { // Cek batas atas (0)
-            y = r; vy = -vy * wallRestitution; collided = true;
+            y = r; vy = -vy * WALL_RESTITUTION; collided = true;
         } else if (y + r > table.getHeight()) {
-            y = table.getHeight() - r; vy = -vy * wallRestitution; collided = true;
+            y = table.getHeight() - r; vy = -vy * WALL_RESTITUTION; collided = true;
         }
 
         if (collided) {
@@ -141,10 +198,8 @@ public class PhysicsEngine implements GameObject {
         if (firstHitBall == null) {
             if (b1 instanceof CueBall && b2 instanceof ObjectBall) {
                 firstHitBall = b2;
-                // System.out.println("First Hit: " + ((ObjectBall)b2).getType()); // Debug
             } else if (b2 instanceof CueBall && b1 instanceof ObjectBall) {
                 firstHitBall = b1;
-                // System.out.println("First Hit: " + ((ObjectBall)b1).getType()); // Debug
             }
         }
 
@@ -161,15 +216,16 @@ public class PhysicsEngine implements GameObject {
         if (speed >= 0) return;
 
         double impulse = 2 * speed / (b1.getMass() + b2.getMass());
-        double restitution = 0.9;
 
-        b1.setVelocity(b1.getVelocity().subtract(normalVector.multiply(impulse * b2.getMass())).multiply(restitution));
-        b2.setVelocity(b2.getVelocity().add(normalVector.multiply(impulse * b1.getMass())).multiply(restitution));
+        b1.setVelocity(b1.getVelocity().subtract(normalVector.multiply(impulse * b2.getMass())).multiply(BALL_RESTITUTION));
+        b2.setVelocity(b2.getVelocity().add(normalVector.multiply(impulse * b1.getMass())).multiply(BALL_RESTITUTION));
     }
 
     /**
      * Mengubah skor arcade secara manual (bisa plus atau minus).
-     * Berguna untuk penalti foul.
+     * Berguna untuk penalti foul atau bonus.
+     *
+     * @param amount jumlah perubahan skor (positif/negatif)
      */
     public void modifyArcadeScore(int amount) {
         this.arcadeScore += amount;
@@ -177,10 +233,10 @@ public class PhysicsEngine implements GameObject {
         if (this.arcadeScore < 0) this.arcadeScore = 0;
     }
 
-    // ... (Method lainnya) ...
-
     /**
      * DEBUG FEATURE: Memaksa bola masuk ke dalam laporan (Cheat).
+     *
+     * @param ball bola yang akan ditandai sebagai ter-pocketed
      */
     public void forcePocketBall(ObjectBall ball) {
         if (!pocketedBalls.contains(ball)) {
@@ -189,4 +245,12 @@ public class PhysicsEngine implements GameObject {
             arcadeScore += 10;
         }
     }
+
+    /**
+     * Konstruktor PhysicsEngine.
+     *
+     * @param table referensi ke meja permainan
+     * @param gameObjects daftar objek permainan yang disimulasikan
+     */
+    // Note: constructor JavaDoc placed near top for readability
 }

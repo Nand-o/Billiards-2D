@@ -1,12 +1,19 @@
-package com.billiards2d;
+package com.billiards2d.util;
 
 /**
- * Kelas utilitas untuk merepresentasikan vektor matematika 2 dimensi (x, y).
+ * Representasi vektor 2D immutable (x, y) yang digunakan untuk semua
+ * perhitungan posisi, kecepatan, dan operasi vektor di seluruh aplikasi.
  * <p>
- * Kelas ini menyediakan operasi aljabar vektor dasar yang diperlukan untuk
- * perhitungan fisika, seperti posisi, kecepatan, dan gaya.
- * Kelas ini bersifat Immutable (objek tidak dapat diubah setelah dibuat).
+ * Kelas ini menyediakan operasi dasar seperti penjumlahan, pengurangan,
+ * perkalian skalar, normalisasi, serta dot-product. Objek bersifat
+ * immutable: setiap operasi mengembalikan instance baru sehingga
+ * menghindari efek samping saat digunakan di subsistem fisika.
  * </p>
+ *
+ * Dokumentasi metode ditulis dalam Bahasa Indonesia. Notifikasi atau teks
+ * yang tampil di UI tetap menggunakan Bahasa Inggris dan tidak diubah di sini.
+ *
+ * @since 2025-12-13
  */
 public class Vector2D {
     private final double x;
@@ -22,11 +29,23 @@ public class Vector2D {
         this.y = y;
     }
 
+    /**
+     * Ambil komponen X dari vektor.
+     *
+     * @return nilai X
+     */
     public double getX() { return x; }
+
+    /**
+     * Ambil komponen Y dari vektor.
+     *
+     * @return nilai Y
+     */
     public double getY() { return y; }
 
     /**
      * Menjumlahkan vektor ini dengan vektor lain.
+     * @param other vektor yang akan dijumlahkan dengan vektor ini
      * @return Vektor baru hasil penjumlahan (this + other).
      */
     public Vector2D add(Vector2D other) {
@@ -35,6 +54,7 @@ public class Vector2D {
 
     /**
      * Mengurangkan vektor lain dari vektor ini.
+     * @param other vektor yang akan dikurangkan dari vektor ini
      * @return Vektor baru hasil pengurangan (this - other).
      */
     public Vector2D subtract(Vector2D other) {
@@ -44,6 +64,7 @@ public class Vector2D {
     /**
      * Mengalikan vektor dengan nilai skalar.
      * Digunakan untuk penskalaan (misalnya memperbesar/memperkecil kecepatan).
+     * @param scalar faktor skalar yang mengalikan komponen vektor
      * @return Vektor baru hasil perkalian (this * scalar).
      */
     public Vector2D multiply(double scalar) {
@@ -74,12 +95,20 @@ public class Vector2D {
      * Menghitung perkalian titik (dot product) dengan vektor lain.
      * Dot product berguna untuk memproyeksikan satu vektor ke vektor lain
      * (misalnya saat menghitung pantulan).
+     * @param other vektor kedua untuk operasi dot product
      * @return Nilai skalar hasil dot product.
      */
     public double dot(Vector2D other) {
         return this.x * other.x + this.y * other.y;
     }
 
+    
+
+    /**
+     * Kembalikan representasi string singkat dari vektor (debug).
+     *
+     * @return representasi Vector2D seperti "Vector2D(x, y)"
+     */
     @Override
     public String toString() {
         return String.format("Vector2D(%.2f, %.2f)", x, y);

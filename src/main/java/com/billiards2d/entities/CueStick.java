@@ -1,18 +1,31 @@
-package com.billiards2d;
+package com.billiards2d.entities;
 
+import static com.billiards2d.core.GameConstants.*;
+
+import com.billiards2d.core.GameObject;
+import com.billiards2d.entities.balls.Ball;
+import com.billiards2d.entities.balls.CueBall;
+import com.billiards2d.entities.balls.ObjectBall;
+import com.billiards2d.game.GameRules;
+import com.billiards2d.util.Vector2D;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import java.util.List;
+import javafx.scene.image.Image;
 
 /**
- * Kelas yang merepresentasikan Stik Biliar (Cue Stick).
+ * Mekanika stik biliar yang bertanggung jawab pada aksi bidik dan pukul.
  * <p>
- * Kelas ini menangani semua interaksi input pemain (mouse), termasuk:
- * 1. Membidik (menggerakkan mouse di sekitar bola putih).
- * 2. Mengatur kekuatan pukulan (drag-and-release mechanic).
- * 3. Menampilkan visualisasi bantuan seperti garis prediksi dan ghost ball.
+ * Menangani input pemain yang berkaitan dengan pengisian power, arahan pukulan,
+ * serta men-generate visualisasi prediksi (ghost ball dan garis arah).
+ * CueStick berinteraksi erat dengan {@link com.billiards2d.entities.balls.CueBall}
+ * dan subsistem aturan {@link com.billiards2d.game.GameRules}.
  * </p>
+ *
+ * Perhatikan: komentar ini hanya mendokumentasikan API; teks yang tampil di UI
+ * (mis. notifikasi kemenangan) tetap dalam Bahasa Inggris dan tidak diubah.
+ *
+ * @since 2025-12-13
  */
 public class CueStick implements GameObject {
 
@@ -21,42 +34,49 @@ public class CueStick implements GameObject {
     private double tableWidth, tableHeight;
     private GameRules gameRules;
     private boolean arcadeMode = false;
+    private double pullbackDistance = 0;
 
     // --- State Aiming (Status Bidikan) ---
-    private boolean isAiming = false;       // Apakah pemain sedang menahan klik mouse?
-    private Vector2D aimStart;              // Posisi mouse saat klik pertama kali
-    private Vector2D aimCurrent;            // Posisi mouse saat ini (saat di-drag)
-    private Vector2D mousePos = new Vector2D(0, 0); // Posisi mouse umum (untuk rotasi stik)
-    private double lockedAngleRad = 0;      // Sudut stik yang terkunci saat mulai menarih
+    private boolean isAiming = false;
+    private Vector2D aimStart;
+    private Vector2D aimCurrent;
+    private Vector2D mousePos = new Vector2D(0, 0);
+    private double lockedAngleRad = 0;
 
-    // --- Konstanta Fisika & Visual ---
-    // Jarak maksimal stik bisa ditarik mundur secara visual (pixel)
-    private static final double MAX_PULL = 300.0;
-    // Gaya maksimal yang bisa diberikan ke bola (satuan fisika arbitrer)
-    private static final double MAX_FORCE = 1350.0;
-    // Jarak tarik mouse yang dianggap sebagai kekuatan penuh (pixel)
-    private static final double MAX_DRAG_DISTANCE = 300.0;
+    private final Image stickImage;
 
     /**
      * Konstruktor CueStick.
      *
      * @param cueBall  Referensi ke bola putih yang akan dipukul.
      * @param allBalls Daftar semua bola di meja (untuk deteksi prediksi tabrakan).
-     * @param tableW   Lebar meja (untuk prediksi pantulan dinding).
-     * @param tableH   Tinggi meja.
+    * @param tableW   Lebar meja (untuk prediksi pantulan dinding).
+    * @param tableH   Tinggi meja.
+    * @param rules    instance {@link GameRules} untuk validasi aturan saat bidik/pukulan
+    * @param stickImage gambar sprite stik yang akan digunakan untuk rendering
      */
-    public CueStick(CueBall cueBall, List<Ball> allBalls, double tableW, double tableH, GameRules rules) {
+    public CueStick(CueBall cueBall, List<Ball> allBalls, double tableW, double tableH, GameRules rules, Image stickImage) {
         this.cueBall = cueBall;
         this.allBalls = allBalls;
         this.tableWidth = tableW;
         this.tableHeight = tableH;
-        this.gameRules = rules; // Simpan rules
+        this.gameRules = rules;
+        this.stickImage = stickImage;
     }
-
+    /**
+     * Atur mode arcade: jika true maka aturan target diabaikan.
+     *
+     * @param isArcade true untuk mengaktifkan arcade mode, false untuk normal
+     */
     public void setArcadeMode(boolean isArcade) {
         this.arcadeMode = isArcade;
     }
 
+    /**
+     * Perbarui status stik setiap frame.
+     *
+     * @param deltaTime waktu sejak frame terakhir dalam detik
+     */
     @Override
     public void update(double deltaTime) {
         // Logika update stik bisa ditambahkan di sini (misal animasi idle)
@@ -66,43 +86,44 @@ public class CueStick implements GameObject {
     /**
      * Menggambar stik dan elemen visual pendukung (garis prediksi).
      * Stik hanya digambar jika bola putih sedang berhenti atau bergerak sangat lambat.
+        *
+        * @param gc konteks grafis untuk menggambar
      */
     @Override
     public void draw(GraphicsContext gc) {
+        // Cek 1: Jangan gambar jika bola masih bergerak
         if (!areAllBallsStopped()) return;
+
+        // Cek 2: Pastikan gambar sudah diload
+        if (stickImage == null) return;
 
         // 1. Tentukan Sudut Bidikan
         double angleRad;
 
         if (!isAiming) {
             // MODE MEMBIDIK (HOVER)
-            // Hitung jarak mouse dari bola
             double dx = mousePos.getX() - cueBall.getPosition().getX();
             double dy = mousePos.getY() - cueBall.getPosition().getY();
 
-            // --- CORE LOGIC FIX ---
-            // Math.atan2(dy, dx) = Sudut MURNI dari Bola ke Mouse.
-            // Kita tambah Math.PI (180 derajat) agar stik berada di SEBERANG Mouse.
-            // Hasil: Mouse di Kanan (Target) -> Stik muncul di Kiri (Siap pukul).
+            // Sudut MURNI dari Bola ke Mouse + 180 derajat (PI)
+            // Hasil: Stik berada di SEBERANG Mouse (posisi memukul)
             angleRad = Math.atan2(dy, dx) + Math.PI;
 
-            lockedAngleRad = angleRad; // Simpan sudut terakhir
+            lockedAngleRad = angleRad; // Simpan untuk mode drag nanti
         } else {
-            // MODE MENARIK (DRAG)
-            // Sudut dikunci, tidak berubah meskipun mouse gerak kiri-kanan
+            // MODE MENARIK (DRAG) - Sudut dikunci
             angleRad = lockedAngleRad;
         }
 
         // 2. Gambar Garis Prediksi (Raycast)
-        // Arah tembakan adalah KEBALIKAN dari posisi stik.
-        // Posisi Stik = angleRad.
-        // Arah Tembak = angleRad + PI (180 derajat lagi) = Kembali ke arah Mouse.
+        // Arah tembakan = Kebalikan posisi stik (kembali ke arah mouse)
         double shootAngle = angleRad + Math.PI;
         Vector2D shootDir = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
 
+        // Pastikan method drawPredictionRay sudah ada (atau pakai garis simple)
         drawPredictionRay(gc, cueBall.getPosition(), shootDir);
 
-        // 3. Gambar Stik Fisik
+        // 3. Gambar Stik Fisik (Menggunakan Gambar Assets)
         drawStickVisual(gc, angleRad);
     }
 
@@ -201,20 +222,19 @@ public class CueStick implements GameObject {
 
         // Prediksi Lanjutan (Hanya gambar jika shot valid, biar ga menuhin layar pas salah)
         if (targetBall != null && isValidShot) {
-            // ... (Kode visual prediksi pantulan yang lama tetap di sini) ...
             Vector2D collisionNormal = targetBall.getPosition().subtract(hitPoint).normalize();
             Vector2D tangent = new Vector2D(-collisionNormal.getY(), collisionNormal.getX());
             if (dir.dot(tangent) < 0) tangent = tangent.multiply(-1);
 
             gc.setLineDashes(null);
-            double predLen = 500.0;
+            double predLen = 50.0;
 
-            gc.setStroke(Color.RED);
+            gc.setStroke(Color.WHITE);
             gc.strokeLine(targetBall.getPosition().getX(), targetBall.getPosition().getY(),
                     targetBall.getPosition().getX() + collisionNormal.getX() * predLen,
                     targetBall.getPosition().getY() + collisionNormal.getY() * predLen);
 
-            gc.setStroke(Color.CYAN);
+            gc.setStroke(Color.WHITE);
             gc.strokeLine(hitPoint.getX(), hitPoint.getY(),
                     hitPoint.getX() + tangent.getX() * predLen,
                     hitPoint.getY() + tangent.getY() * predLen);
@@ -227,40 +247,83 @@ public class CueStick implements GameObject {
      * Stik digambar dengan rotasi sesuai sudut bidikan dan posisi mundur sesuai tarikan mouse.
      */
     private void drawStickVisual(GraphicsContext gc, double angleRad) {
-        double angleDeg = Math.toDegrees(angleRad);
-        double pullDistance = 20; // Jarak default dari bola
+        // --- 1. SETTING UKURAN ---
+        // Tentukan panjang stik yang diinginkan di layar (misal 500 pixel biar panjang)
+        double targetLength = 550.0;
 
-        // Jika sedang membidik, stik mundur sesuai jarak tarik mouse
-        if (isAiming) {
-            double dragDist = aimStart.subtract(aimCurrent).length();
-            pullDistance = Math.min(dragDist, MAX_PULL);
+        // --- 2. HITUNG KETEBALAN OTOMATIS (ASPECT RATIO) ---
+        // Ini kuncinya: Biarkan program menghitung ketebalan berdasarkan gambar asli
+        // agar stik tidak terlihat "gepeng" atau "terlalu tipis".
+        double originalWidth = 1.0;
+        double originalHeight = 1.0;
+
+        if (stickImage != null) {
+            originalWidth = stickImage.getWidth();
+            originalHeight = stickImage.getHeight() / 1.5; // Karena gambar berisi 2 bagian (handle + tip)
         }
 
-        gc.save();
-        // Pindahkan titik asal (0,0) ke pusat bola putih untuk memudahkan rotasi
+        // Rumus: Skala = Panjang Target / Lebar Asli
+        double scale = targetLength / originalWidth;
+
+        // Ketebalan baru mengikuti skala tersebut
+        double drawWidth = targetLength;
+        double drawHeight = originalHeight * scale;
+
+        // OPTIONAL: Jika masih merasa kurang tebal, Anda bisa menambahkan pengali manual
+        // Contoh: drawHeight = originalHeight * scale * 1.5; (tapi biasanya ratio asli sudah cukup)
+
+
+        // --- 3. HITUNG POSISI JARAK (OFFSET) ---
+        // Jarak ujung stik dari pusat bola + animasi tarik mundur (pullback)
+        double distFromBall = cueBall.getRadius() + STICK_OFFSET_FROM_BALL + this.pullbackDistance;
+
+        gc.save(); // Simpan state asli
+
+        // A. Pindahkan titik 0,0 ke PUSAT BOLA PUTIH
         gc.translate(cueBall.getPosition().getX(), cueBall.getPosition().getY());
-        gc.rotate(angleDeg);
 
-        double stickLen = 300;
-        double stickWidth = 8;
-        double tipOffset = cueBall.getRadius() + pullDistance;
+        // B. ROTASI
+        gc.rotate(Math.toDegrees(angleRad));
 
-        // Gambar Batang Kayu
-        gc.setFill(Color.SADDLEBROWN);
-        gc.fillRect(tipOffset, -stickWidth/2, stickLen, stickWidth);
-        // Gambar Ujung Stik (Tip)
-        gc.setFill(Color.CYAN);
-        gc.fillRect(tipOffset, -stickWidth/2, 5, stickWidth);
+        // C. POSISI GAMBAR
+        // Kita geser X sejauh distFromBall.
+        // Kita geser Y sejauh setengah ketebalan stik (agar center).
 
-        gc.restore();
+        double drawX = distFromBall;
+        double drawY = -drawHeight / 2.08;
+
+        // --- 4. GAMBAR ---
+        if (stickImage != null) {
+            // Gambar dengan ukuran yang sudah dihitung rasionya
+            gc.drawImage(stickImage, drawX, drawY, drawWidth, drawHeight);
+        } else {
+            // Fallback jika gambar error
+            gc.setFill(Color.SADDLEBROWN);
+            gc.fillRect(drawX, drawY, drawWidth, 20);
+        }
+
+        gc.restore(); // Balikin state
     }
 
     // --- UPDATE HANDLERS: Terima koordinat langsung ---
 
+    /**
+     * Tangani event mouse bergerak untuk memperbarui posisi kursor.
+     * Posisi hanya digunakan saat tidak sedang men-drag (menarik) stik.
+     *
+     * @param x koordinat X kursor
+     * @param y koordinat Y kursor
+     */
     public void handleMouseMoved(double x, double y) {
         if (!isAiming) this.mousePos = new Vector2D(x, y);
     }
 
+    /**
+     * Tangani event mouse ditekan: memulai mode aiming bila bola sudah berhenti.
+     *
+     * @param x koordinat X mouse saat ditekan
+     * @param y koordinat Y mouse saat ditekan
+     */
     public void handleMousePressed(double x, double y) {
         if (!areAllBallsStopped()) return;
         isAiming = true;
@@ -268,22 +331,51 @@ public class CueStick implements GameObject {
         aimCurrent = new Vector2D(x, y);
     }
 
-    public void handleMouseDragged(double x, double y) {
-        if (!isAiming) return;
-        aimCurrent = new Vector2D(x, y);
+    /**
+     * Tangani event drag mouse: memperbarui jarak tarik (pullback) stik.
+     * Drag hanya memengaruhi komponen vektor sepanjang arah bidikan.
+     *
+     * @param mouseX posisi X mouse saat drag
+     * @param mouseY posisi Y mouse saat drag
+     */
+    public void handleMouseDragged(double mouseX, double mouseY) {
+        if (isAiming) {
+            aimCurrent = new Vector2D(mouseX, mouseY);
+
+            // 1. Hitung Vektor Arah Bidikan (Aim Direction)
+            // Arah pukulan (Aim) adalah kebalikan dari stik (lockedAngleRad + PI)
+            double shootAngle = lockedAngleRad;
+            Vector2D direction = new Vector2D(Math.cos(shootAngle), Math.sin(shootAngle)).normalize();
+
+            // 2. Hitung Vektor Tarikan Mouse (Drag Vector)
+            Vector2D dragVector = aimCurrent.subtract(aimStart);
+
+            // 3. Proyeksikan Vektor Tarikan ke Arah Bidikan
+            // Ini memastikan tarikan hanya dihitung sepanjang garis lurus ke belakang
+            double dragDist = dragVector.dot(direction);
+
+            // 4. Batasi Jarak Tarik (Clamp)
+            // Jangan sampai negatif (mendorong) atau melebihi batas maksimum
+            dragDist = Math.max(0, dragDist);
+            dragDist = Math.min(dragDist, MAX_DRAG_DISTANCE);
+
+            // 5. SET JARAK MUNDUR
+            // Gunakan jarak yang sudah diproyeksikan dan dibatasi
+            this.pullbackDistance = dragDist; // <--- Variabel ini yang menggerakkan stik
+        }
     }
 
+    /**
+     * Tangani event mouse dilepas: hitung kekuatan dan pukul bola jika cukup kuat.
+     *
+     * @param x posisi X mouse saat dilepas
+     * @param y posisi Y mouse saat dilepas
+     */
     public void handleMouseReleased(double x, double y) {
         if (!isAiming) return;
 
-        // Logika release tetap sama... (Code tidak berubah)
-        // ... (copy paste logika release yang lama) ...
-        // ...
-
         // Pastikan aimCurrent diupdate terakhir
         aimCurrent = new Vector2D(x, y);
-
-        // ... (Lanjutkan logika hitung force & hit bola) ...
 
         double dragDist = aimStart.subtract(aimCurrent).length();
         if (dragDist > MAX_DRAG_DISTANCE) dragDist = MAX_DRAG_DISTANCE;
@@ -298,9 +390,14 @@ public class CueStick implements GameObject {
             cueBall.hit(direction.multiply(finalForce));
         }
         isAiming = false;
+        this.pullbackDistance = 0;
     }
 
-    // Helper: Cek apakah SEMUA bola (putih + warna) sudah berhenti
+    /**
+     * Periksa apakah semua bola yang aktif di meja telah berhenti.
+     *
+     * @return true jika tidak ada bola aktif yang bergerak
+     */
     public boolean areAllBallsStopped() {
         for (Ball ball : allBalls) {
             // Hanya cek bola yang masih aktif di meja
@@ -311,6 +408,11 @@ public class CueStick implements GameObject {
         return true; // Semua diam
     }
 
+    /**
+     * Mengetahui apakah pemain sedang berada dalam mode aiming (menarik stik).
+     *
+     * @return true jika sedang men-aim, false jika tidak
+     */
     public boolean isAiming() {
         return isAiming;
     }
@@ -318,6 +420,8 @@ public class CueStick implements GameObject {
     /**
      * Mengembalikan rasio kekuatan tarikan saat ini (0.0 sampai 1.0).
      * Digunakan untuk menggambar panjang Power Bar di UI.
+     *
+     * @return rasio kekuatan saat ini dalam rentang 0.0 hingga 1.0
      */
     public double getPowerRatio() {
         if (!isAiming) return 0.0;
