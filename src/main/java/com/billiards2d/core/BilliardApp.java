@@ -183,9 +183,6 @@ public class BilliardApp extends Application {
         gameUIRenderer = new GameUIRenderer(uiSpriteSheet, ballSpriteSheet);
         hudRenderer = new HUDRenderer();
 
-        // Starting BGM
-        SoundManager.getInstance().playBGM();
-
         // Langsung masuk ke Menu Utama
         sceneManager.showMainMenu(gameLoop);
     }
@@ -308,6 +305,8 @@ public class BilliardApp extends Application {
      * Memulai permainan (Scene Game) berdasarkan mode yang dipilih.
      */
     private void startGame(boolean mode8Ball) {
+        // Stoping BGM when Game Start
+        SoundManager.getInstance().stopBGM();
         // 1. Set Mode Sesuai Pilihan Menu
         this.is8BallMode = mode8Ball;
 

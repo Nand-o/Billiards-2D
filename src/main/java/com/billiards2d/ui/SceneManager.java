@@ -85,6 +85,9 @@ public class SceneManager {
      * @param currentGameLoop the currently running AnimationTimer for the game; may be null
      */
     public void showMainMenu(AnimationTimer currentGameLoop) {
+        // Starting BGM
+        SoundManager.getInstance().playBGM();
+
         // Stop current game loop if running
         if (currentGameLoop != null) {
             currentGameLoop.stop();

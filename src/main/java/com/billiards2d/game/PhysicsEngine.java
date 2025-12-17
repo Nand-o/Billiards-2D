@@ -2,6 +2,7 @@ package com.billiards2d.game;
 
 import static com.billiards2d.core.GameConstants.*;
 
+import com.billiards2d.SoundManager;
 import com.billiards2d.core.GameObject;
 import com.billiards2d.entities.balls.Ball;
 import com.billiards2d.entities.balls.CueBall;
