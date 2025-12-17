@@ -388,6 +388,11 @@ public class CueStick implements GameObject {
 
         if (finalForce > 5) {
             cueBall.hit(direction.multiply(finalForce));
+
+            // --- NEW: Cue Stick Hit SFX ---
+            // Volume based on force hit
+            double volume = Math.min(1.0, finalForce / 1000.0);
+            SoundManager.getInstance().playSFX("cue_strike", volume);
         }
         isAiming = false;
         this.pullbackDistance = 0;

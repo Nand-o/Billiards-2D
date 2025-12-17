@@ -115,7 +115,10 @@ public class PhysicsEngine implements GameObject {
 
             // --- 1. CEK LUBANG ---
             if (table.isBallInPocket(b1)) {
-
+                // check that the sound is not overlap
+                if (b1.isActive()) {
+                    SoundManager.getInstance().playSFX("pocket");
+                }
                 if (b1 instanceof CueBall) {
                     // CUE BALL MASUK
                     CueBall cb = (CueBall) b1;
@@ -185,6 +188,13 @@ public class PhysicsEngine implements GameObject {
         if (collided) {
             ball.setPosition(new Vector2D(x, y));
             ball.setVelocity(new Vector2D(vx, vy));
+
+            double speed = ball.getVelocity().length();
+            if (speed > 10) {
+                // Dynamic Volume
+                double vol = Math.min(1.0, speed / 100.0);
+                SoundManager.getInstance().playSFX("rail", vol);
+            }
         }
     }
 
@@ -214,6 +224,13 @@ public class PhysicsEngine implements GameObject {
         double speed = relativeVel.dot(normalVector);
 
         if (speed >= 0) return;
+
+        double impactSpeed = Math.abs(speed);
+        if (impactSpeed > 5.0) {
+            // Bunyi Tabrakan Bola "Clack"
+            double vol = Math.min(1.0, impactSpeed / 80.0);
+            SoundManager.getInstance().playSFX("ball_hit", vol);
+        }
 
         double impulse = 2 * speed / (b1.getMass() + b2.getMass());
 

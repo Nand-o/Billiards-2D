@@ -28,20 +28,17 @@ public class SoundManager {
     }
 
     private void loadSounds() {
-        // --- UPDATE PATH DI SINI ---
-        // Karena folder kamu adalah 'sound', maka path-nya jadi "/sound/"
-
-        // Pastikan nama file .wav atau .mp3 nya SAMA PERSIS dengan yang ada di foldermu
-        loadSFX("cue_strike", "sfx_cue_strike.wav");
-        loadSFX("ball_hit",   "sfx_hit_strong.wav");
+        // Key (kiri) tetap sama agar logic di class lain tidak perlu diubah.
+        // Value (kanan) disesuaikan dengan nama file asli di gambar.
+        loadSFX("cue_strike", "sfx_cue_hit.wav");
+        loadSFX("ball_hit",   "sfx_hit.wav");
         loadSFX("pocket",     "sfx_pocket.wav");
-        loadSFX("rail",       "sfx_rail.wav");
         loadSFX("ui_click",   "sfx_click.wav");
+        loadSFX("rail",       "sfx_hit.wav");
 
         // Load BGM
         try {
-            // Ubah path ke /sound/
-            var url = getClass().getResource("/sound/bgm_jazz.mp3");
+            var url = getClass().getResource("/assets/sound/bgm_jazz.mp3");
 
             if (url != null) {
                 String bgmPath = url.toString();
@@ -50,7 +47,7 @@ public class SoundManager {
                 bgmPlayer.setCycleCount(MediaPlayer.INDEFINITE);
                 bgmPlayer.setVolume(0.5);
             } else {
-                System.err.println("File BGM tidak ditemukan di: /sound/bgm_jazz.mp3");
+                System.err.println("File BGM tidak ditemukan di: /assets/sound/bgm_jazz.mp3");
             }
         } catch (Exception e) {
             System.err.println("Gagal load BGM: " + e.getMessage());
@@ -59,22 +56,18 @@ public class SoundManager {
 
     private void loadSFX(String key, String fileName) {
         try {
-            // --- UPDATE PATH DI SINI ---
-            // Mengarah ke folder /sound/
-            var url = getClass().getResource("/sound/" + fileName);
+            var url = getClass().getResource("/assets/sound/" + fileName);
 
             if (url != null) {
                 AudioClip clip = new AudioClip(url.toString());
                 soundEffects.put(key, clip);
             } else {
-                System.err.println("File SFX tidak ditemukan: /sound/" + fileName);
+                System.err.println("File SFX tidak ditemukan: /assets/sound/" + fileName);
             }
         } catch (Exception e) {
             System.err.println("Gagal load SFX (" + fileName + "): " + e.getMessage());
         }
     }
-
-    // --- SISANYA SAMA SEPERTI SEBELUMNYA ---
 
     public void playSFX(String key, double volumeLevel) {
         if (sfxMuted) return;

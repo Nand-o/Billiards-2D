@@ -2,6 +2,7 @@ package com.billiards2d.core;
 
 import static com.billiards2d.core.GameConstants.*;
 
+import com.billiards2d.SoundManager;
 import com.billiards2d.entities.balls.Ball;
 import com.billiards2d.entities.balls.CueBall;
 import com.billiards2d.entities.balls.ObjectBall;
@@ -181,6 +182,9 @@ public class BilliardApp extends Application {
         // Initialize renderers
         gameUIRenderer = new GameUIRenderer(uiSpriteSheet, ballSpriteSheet);
         hudRenderer = new HUDRenderer();
+
+        // Starting BGM
+        SoundManager.getInstance().playBGM();
 
         // Langsung masuk ke Menu Utama
         sceneManager.showMainMenu(gameLoop);

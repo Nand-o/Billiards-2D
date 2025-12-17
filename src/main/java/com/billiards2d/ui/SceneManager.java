@@ -1,5 +1,6 @@
 package com.billiards2d.ui;
 
+import com.billiards2d.SoundManager;
 import com.billiards2d.core.GameObject;
 import com.billiards2d.game.GameRules;
 import javafx.animation.AnimationTimer;
@@ -341,7 +342,10 @@ public class SceneManager {
         btn.setStyle(normalStyle);
         btn.setOnMouseEntered(e -> btn.setStyle(hoverStyle));
         btn.setOnMouseExited(e -> btn.setStyle(normalStyle));
-        btn.setOnAction(e -> action.run());
+        btn.setOnAction(e -> {
+            SoundManager.getInstance().playSFX("ui_click"); //Click SFX
+            action.run();
+        });
 
         return btn;
     }
