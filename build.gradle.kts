@@ -12,12 +12,12 @@ repositories {
 }
 
 application {
-    mainClass.set("com.billiards2d.BilliardApp")
+    mainClass.set("com.billiards2d.core.BilliardApp")
 }
 
 javafx {
     version = "21"
-    modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics")
+    modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.media")
 }
 
 dependencies {
